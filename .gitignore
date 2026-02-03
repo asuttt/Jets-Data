@@ -10,6 +10,9 @@ __pycache__/
 .venv/
 .venv311/
 .env
+.env.local
+.env.*.local
+node_modules/
 
 # notebooks
 .ipynb_checkpoints/
