@@ -1,11 +1,11 @@
 import { BrowserRouter, NavLink, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import FourthDownPage from "./pages/FourthDownPage";
 import TakeawaysPage from "./pages/TakeawaysPage";
-import jetsLogo from "./assets/jets-logo.svg";
+import primaryLogo from "./assets/Primary Logo.png";
 
 const navItems = [
-  { label: "4th Down Decisions", to: "/fourth-down" },
-  { label: "Takeaway Analysis", to: "/takeaways" },
+  { label: "4th Downs", to: "/fourth-down" },
+  { label: "INT Opps", to: "/takeaways" },
 ];
 
 function AppShell() {
@@ -14,9 +14,9 @@ function AppShell() {
       <header className="border-b border-border bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <img src={jetsLogo} alt="Jets Data Analytics Tool" className="h-10 w-auto" />
+            <img src={primaryLogo} alt="Jets Data Analytics Tool" className="h-10 w-auto" />
             <div className="hidden sm:block">
-              <div className="text-lg font-semibold text-foreground">Jets Data Analytics Tool</div>
+              <div className="text-lg font-semibold text-foreground">2025 Data Analytics Tool</div>
               <div className="text-sm text-muted-foreground">Internal Demo</div>
             </div>
           </div>

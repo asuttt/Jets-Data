@@ -37,6 +37,8 @@ def build_games_index(df: pd.DataFrame, *, team: str, season: int) -> pd.DataFra
         "home_team": "max",
         "away_team": "max",
     }
+    if "week" in season_df.columns:
+        agg["week"] = "max"
     for col in score_cols:
         agg[col] = "max"
 

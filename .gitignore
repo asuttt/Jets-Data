@@ -1,7 +1,10 @@
 # raw data (never commit)
 data/
+!Frontend/public/data/
+!Frontend/public/data/**
 *.parquet
 *.csv
+!Frontend/public/data/*.csv
 *.csv.gz
 
 # python
