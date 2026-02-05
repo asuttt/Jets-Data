@@ -139,8 +139,22 @@ export default function FourthDownPage() {
       });
   }, [cards, activeGame]);
 
+  const weekSlots = useMemo(() => {
+    const byWeek = new Map<number, GameRow>();
+    for (const game of games) {
+      const week = Number(game.week);
+      if (!Number.isNaN(week)) {
+        byWeek.set(week, game);
+      }
+    }
+    return Array.from({ length: 18 }, (_, i) => {
+      const week = i + 1;
+      return { week, game: byWeek.get(week) ?? null };
+    });
+  }, [games]);
+
   return (
-    <section className="space-y-8">
+    <section className="space-y-3">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold text-foreground">4th Down Decision Analysis</h1>
         <p className="text-sm text-muted-foreground">
@@ -148,53 +162,68 @@ export default function FourthDownPage() {
         </p>
       </div>
 
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 lg:flex-row lg:items-start">
-        <div className="flex-1 rounded-2xl border border-border bg-white px-4 py-3 shadow-sm">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold text-foreground">Select Game</p>
-              <p className="text-xs text-muted-foreground">Choose a week to view its 4th-down cards.</p>
+      <div className="mx-auto w-full max-w-6xl space-y-3 px-0">
+        <div className="space-y-2">
+          <div className="overflow-hidden rounded-full border border-border bg-white">
+            <div
+              className="grid w-full items-stretch"
+              style={{ gridTemplateColumns: "repeat(18, minmax(0, 1fr))" }}
+            >
+              {weekSlots.map((slot, index) => {
+                const game = slot.game;
+                if (!game) {
+                  return (
+                    <div
+                      key={`week-${slot.week}`}
+                      className={[
+                        "flex w-full flex-col items-center justify-center gap-1 px-3 py-4 text-xs font-semibold text-muted-foreground",
+                        index !== 0 ? "border-l border-border" : "",
+                      ].join(" ")}
+                    >
+                      <span>{slot.week}</span>
+                      <span className="text-[10px]">Bye</span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <button
+                    key={game.game_id}
+                    type="button"
+                    onClick={() => setActiveGame(game.game_id)}
+                    className={[
+                      "flex w-full flex-col items-center justify-center gap-1 px-3 py-4 text-xs font-semibold transition-colors",
+                      index !== 0 ? "border-l border-border" : "",
+                      activeGame === game.game_id
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-white text-foreground/80 hover:bg-muted",
+                    ].join(" ")}
+                  >
+                    <span>{slot.week}</span>
+                    {getTeamLogo(game.opponent) ? (
+                      <img
+                        src={getTeamLogo(game.opponent) as string}
+                        alt={game.opponent}
+                        className="h-5 w-5 object-contain"
+                      />
+                    ) : null}
+                  </button>
+                );
+              })}
             </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {games.map((game) => (
-              <button
-                key={game.game_id}
-                type="button"
-                onClick={() => setActiveGame(game.game_id)}
-                className={[
-                  "flex items-center justify-between gap-3 whitespace-nowrap rounded-full border px-4 py-2 text-xs font-semibold transition-colors",
-                  activeGame === game.game_id
-                    ? "border-transparent bg-primary text-primary-foreground"
-                    : "border-border bg-white text-foreground/80 hover:bg-primary hover:text-primary-foreground",
-                ].join(" ")}
-              >
-                <span>Week {game.week}</span>
-                {getTeamLogo(game.opponent) ? (
-                  <img
-                    src={getTeamLogo(game.opponent) as string}
-                    alt={game.opponent}
-                    className="h-5 w-5 rounded-full bg-white object-contain"
-                  />
-                ) : null}
-              </button>
-            ))}
           </div>
         </div>
 
-        <div className="w-full rounded-2xl border border-border bg-white px-4 py-3 shadow-sm lg:w-64">
-          <p className="text-sm font-semibold text-foreground">Backtest Range</p>
-          <p className="text-xs text-muted-foreground">
-            Select a historical range to compare.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-foreground">Testing Range</p>
+          <div className="flex flex-wrap gap-3">
             {rangeOptions.map((option) => (
               <button
                 key={option.value}
                 type="button"
                 onClick={() => setRange(option.value)}
                 className={[
-                  "rounded-full border px-4 py-2 text-xs font-semibold transition-colors",
+                  "rounded-full border px-5 py-2 text-xs font-semibold transition-colors",
                   range === option.value
                     ? "border-transparent bg-primary text-primary-foreground"
                     : "border-border bg-white text-foreground/80 hover:bg-primary hover:text-primary-foreground",
@@ -212,7 +241,7 @@ export default function FourthDownPage() {
           {error}
         </div>
       ) : (
-        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mx-auto mt-6 grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
           {activeCards.map((card, idx) => (
             <div key={`${card.game_id}-${idx}`} className="flip-card group">
               <div className="flip-inner">
