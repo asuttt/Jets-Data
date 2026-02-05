@@ -212,18 +212,18 @@ export default function TakeawaysPage() {
 
           <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[920px] text-sm">
-                <thead className="bg-muted/30 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <table className="w-full min-w-[920px] table-fixed text-sm">
+                <thead className="bg-muted/30 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th className="px-4 py-3 text-center">Week</th>
-                    <th className="px-4 py-3">Opponent</th>
-                    <th className="px-4 py-3 text-right">Pass Att</th>
-                    <th className="px-4 py-3 text-right">Pass Def</th>
-                    <th className="px-4 py-3 text-right">QB Hits</th>
-                    <th className="px-4 py-3 text-right">Sacks</th>
-                    <th className="px-4 py-3 text-right">INTs</th>
-                    <th className="px-4 py-3 text-center">Expected INTs</th>
-                    <th className="px-4 py-3 text-center">Detail</th>
+                    <th className="w-[11.11%] px-4 py-3">Week</th>
+                    <th className="w-[11.11%] px-4 py-3">Opponent</th>
+                    <th className="w-[11.11%] px-4 py-3">Pass Att</th>
+                    <th className="w-[11.11%] px-4 py-3">Pass Def</th>
+                    <th className="w-[11.11%] px-4 py-3">QB Hits</th>
+                    <th className="w-[11.11%] px-4 py-3">Sacks</th>
+                    <th className="w-[11.11%] px-4 py-3">INTs</th>
+                    <th className="w-[11.11%] px-4 py-3">Expected INTs</th>
+                    <th className="w-[11.11%] px-4 py-3">Detail</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -234,11 +234,11 @@ export default function TakeawaysPage() {
                       <>
                         <tr key={rowKey} className={isBye ? "bg-muted/20 text-muted-foreground" : "border-t border-border"}>
                           <td className="px-4 py-3 text-center font-medium">{week}</td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 text-center">
                             {isBye ? (
                               "BYE"
                             ) : (
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center justify-center gap-2">
                                 {getLogo(row!.opponent) ? (
                                   <img src={getLogo(row!.opponent) as string} alt={row!.opponent} className="h-5 w-5 object-contain" />
                                 ) : null}
@@ -246,11 +246,11 @@ export default function TakeawaysPage() {
                               </div>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-right">{isBye ? "--" : fmtIntOrDash(row!.pass_attempts)}</td>
-                          <td className="px-4 py-3 text-right">{isBye ? "--" : fmtIntOrDash(row!.pass_defenses)}</td>
-                          <td className="px-4 py-3 text-right">{isBye ? "--" : fmtIntOrDash(row!.qb_hits)}</td>
-                          <td className="px-4 py-3 text-right">{isBye ? "--" : fmtIntOrDash(row!.sacks)}</td>
-                          <td className="px-4 py-3 text-right">{isBye ? "--" : fmtIntOrDash(row!.interceptions)}</td>
+                          <td className="px-4 py-3 text-center">{isBye ? "--" : fmtIntOrDash(row!.pass_attempts)}</td>
+                          <td className="px-4 py-3 text-center">{isBye ? "--" : fmtIntOrDash(row!.pass_defenses)}</td>
+                          <td className="px-4 py-3 text-center">{isBye ? "--" : fmtIntOrDash(row!.qb_hits)}</td>
+                          <td className="px-4 py-3 text-center">{isBye ? "--" : fmtIntOrDash(row!.sacks)}</td>
+                          <td className="px-4 py-3 text-center">{isBye ? "--" : fmtIntOrDash(row!.interceptions)}</td>
                           <td
                             className={[
                               "px-4 py-3 text-center font-semibold",

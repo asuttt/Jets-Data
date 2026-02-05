@@ -17,7 +17,7 @@ function AppShell() {
             <img src={primaryLogo} alt="Jets Data Analytics Tool" className="h-10 w-auto" />
             <div className="hidden sm:block">
               <div className="text-lg font-semibold text-foreground">2025 Data Analytics Tool</div>
-              <div className="text-sm text-muted-foreground">Internal Demo</div>
+              <div className="text-sm text-muted-foreground">Private Demo</div>
             </div>
           </div>
           <nav className="flex items-center gap-4">

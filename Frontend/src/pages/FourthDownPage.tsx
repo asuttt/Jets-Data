@@ -86,6 +86,36 @@ function formatDelta(value?: string) {
   return `${sign}${(num * 100).toFixed(1)}%`;
 }
 
+function formatDecisionLabel(value?: string) {
+  if (!value) return "TBD";
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "punt") return "Punt";
+  if (normalized === "go") return "GO";
+  if (normalized === "field_goal" || normalized === "field goal") return "Field Goal";
+  return value;
+}
+
+function normalizeDecision(value?: string) {
+  if (!value) return "";
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "field goal") return "field_goal";
+  return normalized;
+}
+
+function actionChipClass(action?: string) {
+  const normalized = normalizeDecision(action);
+  if (normalized === "punt") {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+  if (normalized === "field_goal") {
+    return "border-sky-200 bg-sky-50 text-sky-800";
+  }
+  if (normalized === "go") {
+    return "border-[hsl(160_66%_21%/.20)] bg-[hsl(160_66%_21%/.08)] text-primary";
+  }
+  return "border-border bg-white text-foreground";
+}
+
 export default function FourthDownPage() {
   const [range, setRange] = useState(rangeOptions[0].value);
   const [games, setGames] = useState<GameRow[]>([]);
@@ -162,12 +192,11 @@ export default function FourthDownPage() {
         </p>
       </div>
 
-      <div className="mx-auto w-full max-w-6xl space-y-3 px-0">
+      <div className="mx-auto w-full max-w-5xl space-y-3 px-0">
         <div className="space-y-2">
           <div className="overflow-hidden rounded-full border border-border bg-white">
             <div
-              className="grid w-full items-stretch"
-              style={{ gridTemplateColumns: "repeat(18, minmax(0, 1fr))" }}
+              className="grid w-full items-stretch [grid-template-columns:repeat(18,minmax(0,1fr))] xl:justify-center xl:[grid-template-columns:64px_repeat(16,56px)_64px]"
             >
               {weekSlots.map((slot, index) => {
                 const game = slot.game;
@@ -241,7 +270,7 @@ export default function FourthDownPage() {
           {error}
         </div>
       ) : (
-        <div className="mx-auto mt-6 grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mx-auto mt-8 grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
           {activeCards.map((card, idx) => (
             <div key={`${card.game_id}-${idx}`} className="flip-card group">
               <div className="flip-inner">
@@ -276,27 +305,52 @@ export default function FourthDownPage() {
                     <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
                       <span>Win %</span>
                       <div className="flex items-center gap-2">
-                        <span className="rounded-full border border-border bg-white px-2 py-1 text-[11px] font-semibold">
+                        <span
+                          className={[
+                            "rounded-full border px-2 py-1 text-[11px] font-semibold",
+                            actionChipClass("punt"),
+                          ].join(" ")}
+                        >
                           P {formatPercent(card.exp_wp_punt)}
                         </span>
-                        <span className="rounded-full border border-border bg-white px-2 py-1 text-[11px] font-semibold">
+                        <span
+                          className={[
+                            "rounded-full border px-2 py-1 text-[11px] font-semibold",
+                            actionChipClass("field_goal"),
+                          ].join(" ")}
+                        >
                           FG {formatPercent(card.exp_wp_field_goal)}
                         </span>
-                        <span className="rounded-full border border-border bg-white px-2 py-1 text-[11px] font-semibold">
-                          Go {formatPercent(card.exp_wp_go)}
+                        <span
+                          className={[
+                            "rounded-full border px-2 py-1 text-[11px] font-semibold",
+                            actionChipClass("go"),
+                          ].join(" ")}
+                        >
+                          GO {formatPercent(card.exp_wp_go)}
                         </span>
                       </div>
                     </div>
                     <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
                       <span>Recommendation</span>
-                      <span className="rounded-full bg-primary px-2 py-1 text-[11px] font-semibold text-primary-foreground">
-                        {card.best_decision || "TBD"} ({formatDelta(card.exp_wp_best_minus_actual)})
+                      <span
+                        className={[
+                          "rounded-full border px-2 py-1 text-[11px] font-semibold",
+                          actionChipClass(card.best_decision),
+                        ].join(" ")}
+                      >
+                        {formatDecisionLabel(card.best_decision)} ({formatDelta(card.exp_wp_best_minus_actual)})
                       </span>
                     </div>
                     <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
                       <span>Decision</span>
-                      <span className="rounded-full bg-black px-2 py-1 text-[11px] font-semibold text-white">
-                        {card.decision || "TBD"}
+                      <span
+                        className={[
+                          "rounded-full border px-2 py-1 text-[11px] font-semibold",
+                          actionChipClass(card.decision),
+                        ].join(" ")}
+                      >
+                        {formatDecisionLabel(card.decision)}
                       </span>
                     </div>
                     {card.low_sample_flag === "True" && (
