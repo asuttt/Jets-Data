@@ -99,7 +99,17 @@ def main() -> None:
     detail.to_csv(detail_path, index=False)
 
     if args.add_drive_detail:
-        drive_cols = ["game_id", "drive", "qtr", "time", "pass_attempt", "interception"]
+        drive_cols = [
+            "game_id",
+            "drive",
+            "qtr",
+            "time",
+            "pass_attempt",
+            "interception",
+            "pass_defense",
+            "qb_hit",
+            "sack",
+        ]
         if "drive" in eval_scored.columns:
             drive = eval_scored.loc[:, [col for col in drive_cols if col in eval_scored.columns]].copy()
             drive["expected_ints"] = eval_scored["expected_ints"].values
@@ -109,6 +119,9 @@ def main() -> None:
                     qtr=("qtr", "min"),
                     time=("time", "min"),
                     pass_attempts=("pass_attempt", "size"),
+                    pass_defenses=("pass_defense", "sum"),
+                    qb_hits=("qb_hit", "sum"),
+                    sacks=("sack", "sum"),
                     interceptions=("interception", "sum"),
                     expected_ints=("expected_ints", "sum"),
                 )

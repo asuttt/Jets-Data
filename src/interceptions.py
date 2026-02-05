@@ -170,7 +170,7 @@ def summarize_per_game(df: pd.DataFrame, games: pd.DataFrame) -> pd.DataFrame:
     )
     grouped["int_rate"] = grouped["interceptions"] / grouped["pass_attempts"]
     grouped["expected_int_rate"] = grouped["expected_ints"] / grouped["pass_attempts"]
-    grouped["luck_gap"] = grouped["interceptions"] - grouped["expected_ints"]
+    grouped["expected_minus_actual"] = grouped["expected_ints"] - grouped["interceptions"]
 
     return games.merge(grouped, on="game_id", how="left")
 
@@ -194,7 +194,7 @@ def summarize_season(
     )
     summary["int_rate"] = summary["interceptions"] / summary["pass_attempts"]
     summary["expected_int_rate"] = summary["expected_ints"] / summary["pass_attempts"]
-    summary["luck_gap"] = summary["interceptions"] - summary["expected_ints"]
+    summary["expected_minus_actual"] = summary["expected_ints"] - summary["interceptions"]
     return summary
 
 
