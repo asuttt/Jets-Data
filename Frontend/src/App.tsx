@@ -42,6 +42,9 @@ function AppShell() {
       </header>
       <main className="mx-auto max-w-6xl px-6 py-8">
         <Outlet />
+        <p className="mt-8 text-center text-xs text-muted-foreground/80">
+          &copy;Arseni Sutton. Proprietary analytics work. All data sourced from nflfastR.
+        </p>
       </main>
     </div>
   );
