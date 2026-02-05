@@ -22,6 +22,8 @@ type PerGameRow = {
   interceptions: string;
   expected_ints: string;
   expected_minus_actual: string;
+  opp_avg_ints_per_game: string;
+  opp_avg_expected_ints_per_game: string;
 };
 
 type DriveDetailRow = {
@@ -119,6 +121,12 @@ function fmtFixedOrDash(value: string | number, digits = 2) {
   return num.toFixed(digits);
 }
 
+function fmtLeaguePerTeamNoDecimals(value: string | number) {
+  const num = Number(value);
+  if (Number.isNaN(num)) return "--";
+  return `${Math.round(num / 32)}`;
+}
+
 export default function TakeawaysPage() {
   const [summary, setSummary] = useState<SummaryRow[]>([]);
   const [perGame, setPerGame] = useState<PerGameRow[]>([]);
@@ -157,6 +165,10 @@ export default function TakeawaysPage() {
 
   const jetsSummary = useMemo(
     () => summary.find((row) => row.scope === "NYJ 2025"),
+    [summary]
+  );
+  const leagueAvgSummary = useMemo(
+    () => summary.find((row) => row.scope === "League 2025 Avg Team"),
     [summary]
   );
 
@@ -202,28 +214,40 @@ export default function TakeawaysPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-border bg-white px-4 py-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actual INTs</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">{fmt(jetsSummary?.interceptions ?? "--", 0)}</p>
+              <div className="mt-2 flex items-end justify-between gap-3">
+                <p className="text-2xl font-semibold text-foreground">{fmt(jetsSummary?.interceptions ?? "--", 0)}</p>
+                <p className="text-xs text-muted-foreground">
+                  League Avg: {fmtLeaguePerTeamNoDecimals(leagueAvgSummary?.interceptions ?? "--")}
+                </p>
+              </div>
             </div>
             <div className="rounded-2xl border border-border bg-white px-4 py-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expected INTs</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">{fmt(jetsSummary?.expected_ints ?? "--", 2)}</p>
+              <div className="mt-2 flex items-end justify-between gap-3">
+                <p className="text-2xl font-semibold text-foreground">{fmt(jetsSummary?.expected_ints ?? "--", 2)}</p>
+                <p className="text-xs text-muted-foreground">
+                  League Avg: {fmtLeaguePerTeamNoDecimals(leagueAvgSummary?.expected_ints ?? "--")}
+                </p>
+              </div>
             </div>
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[920px] table-fixed text-sm">
+              <table className="w-full table-fixed text-sm">
                 <thead className="bg-muted/30 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th className="w-[11.11%] px-4 py-3">Week</th>
-                    <th className="w-[11.11%] px-4 py-3">Opponent</th>
-                    <th className="w-[11.11%] px-4 py-3">Pass Att</th>
-                    <th className="w-[11.11%] px-4 py-3">Pass Def</th>
-                    <th className="w-[11.11%] px-4 py-3">QB Hits</th>
-                    <th className="w-[11.11%] px-4 py-3">Sacks</th>
-                    <th className="w-[11.11%] px-4 py-3">INTs</th>
-                    <th className="w-[11.11%] px-4 py-3">Expected INTs</th>
-                    <th className="w-[11.11%] px-4 py-3">Detail</th>
+                    <th className="w-[9.09%] px-2 py-2">Week</th>
+                    <th className="w-[9.09%] px-2 py-2">Opponent</th>
+                    <th className="w-[9.09%] px-2 py-2">Pass Att</th>
+                    <th className="w-[9.09%] px-2 py-2">Pass Def</th>
+                    <th className="w-[9.09%] px-2 py-2">QB Hits</th>
+                    <th className="w-[9.09%] px-2 py-2">Sacks</th>
+                    <th className="w-[9.09%] px-2 py-2">Opp Avg INTs</th>
+                    <th className="w-[9.09%] px-2 py-2">Opp Avg Exp INTs</th>
+                    <th className="w-[9.09%] px-2 py-2">JETS INT</th>
+                    <th className="w-[9.09%] px-2 py-2">JETS EXPECTED INT</th>
+                    <th className="w-[9.09%] px-2 py-2">Detail</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -232,28 +256,64 @@ export default function TakeawaysPage() {
                     const isExpanded = expandedGameId === row?.game_id;
                     return (
                       <>
-                        <tr key={rowKey} className={isBye ? "bg-muted/20 text-muted-foreground" : "border-t border-border"}>
-                          <td className="px-4 py-3 text-center font-medium">{week}</td>
-                          <td className="px-4 py-3 text-center">
+                        <tr key={rowKey} className="h-14 border-t border-border">
+                          <td
+                            className={[
+                              "px-2 py-2 text-center font-medium",
+                              isBye ? "bg-muted/20" : "",
+                            ].join(" ")}
+                          >
+                            {week}
+                          </td>
+                          <td className={["px-2 py-2 text-center", isBye ? "bg-muted/20 text-muted-foreground" : ""].join(" ")}>
                             {isBye ? (
                               "BYE"
                             ) : (
                               <div className="flex items-center justify-center gap-2">
                                 {getLogo(row!.opponent) ? (
-                                  <img src={getLogo(row!.opponent) as string} alt={row!.opponent} className="h-5 w-5 object-contain" />
+                                  <img src={getLogo(row!.opponent) as string} alt={row!.opponent} className="h-4 w-4 object-contain" />
                                 ) : null}
                                 <span>{row!.home_away === "away" ? `@${row!.opponent}` : row!.opponent}</span>
                               </div>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-center">{isBye ? "--" : fmtIntOrDash(row!.pass_attempts)}</td>
-                          <td className="px-4 py-3 text-center">{isBye ? "--" : fmtIntOrDash(row!.pass_defenses)}</td>
-                          <td className="px-4 py-3 text-center">{isBye ? "--" : fmtIntOrDash(row!.qb_hits)}</td>
-                          <td className="px-4 py-3 text-center">{isBye ? "--" : fmtIntOrDash(row!.sacks)}</td>
-                          <td className="px-4 py-3 text-center">{isBye ? "--" : fmtIntOrDash(row!.interceptions)}</td>
+                          <td className={["px-2 py-2 text-center", isBye ? "bg-muted/20 text-muted-foreground" : ""].join(" ")}>{isBye ? "--" : fmtIntOrDash(row!.pass_attempts)}</td>
+                          <td className={["px-2 py-2 text-center", isBye ? "bg-muted/20 text-muted-foreground" : ""].join(" ")}>{isBye ? "--" : fmtIntOrDash(row!.pass_defenses)}</td>
+                          <td className={["px-2 py-2 text-center", isBye ? "bg-muted/20 text-muted-foreground" : ""].join(" ")}>{isBye ? "--" : fmtIntOrDash(row!.qb_hits)}</td>
+                          <td className={["px-2 py-2 text-center", isBye ? "bg-muted/20 text-muted-foreground" : ""].join(" ")}>{isBye ? "--" : fmtIntOrDash(row!.sacks)}</td>
                           <td
                             className={[
-                              "px-4 py-3 text-center font-semibold",
+                              "px-2 py-2 text-center",
+                              isBye ? "text-muted-foreground" : "",
+                              idx % 2 === 0 ? "bg-muted/20" : "bg-muted/35",
+                            ].join(" ")}
+                          >
+                            {isBye ? "--" : fmtFixedOrDash(row!.opp_avg_ints_per_game)}
+                          </td>
+                          <td
+                            className={[
+                              "px-2 py-2 text-center",
+                              isBye ? "text-muted-foreground" : "",
+                              idx % 2 === 0 ? "bg-muted/20" : "bg-muted/35",
+                            ].join(" ")}
+                          >
+                            {isBye ? "--" : fmtFixedOrDash(row!.opp_avg_expected_ints_per_game)}
+                          </td>
+                          <td
+                            className={[
+                              "px-2 py-2 text-center font-semibold",
+                              isBye ? "text-muted-foreground" : "",
+                              idx % 2 === 0
+                                ? "bg-[hsl(160_66%_21%/.08)]"
+                                : "bg-[hsl(160_66%_21%/.14)]",
+                            ].join(" ")}
+                          >
+                            {isBye ? "--" : fmtIntOrDash(row!.interceptions)}
+                          </td>
+                          <td
+                            className={[
+                              "px-2 py-2 text-center font-semibold",
+                              isBye ? "text-muted-foreground" : "",
                               idx % 2 === 0
                                 ? "bg-[hsl(160_66%_21%/.08)]"
                                 : "bg-[hsl(160_66%_21%/.14)]",
@@ -261,9 +321,11 @@ export default function TakeawaysPage() {
                           >
                             {isBye ? "--" : fmtFixedOrDash(row!.expected_ints)}
                           </td>
-                          <td className="px-4 py-3 text-center">
+                          <td className="px-2 py-2 text-center">
                             {isBye ? (
-                              "--"
+                              <span className="inline-flex min-w-[52px] items-center justify-center rounded-full border border-transparent px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+                                --
+                              </span>
                             ) : (
                               <button
                                 type="button"
@@ -275,7 +337,7 @@ export default function TakeawaysPage() {
                                     setDetailTab("drive");
                                   }
                                 }}
-                                className="rounded-full border border-border bg-white px-3 py-1 text-xs font-semibold hover:bg-muted"
+                                className="rounded-full border border-border bg-white px-2 py-1 text-[11px] font-semibold hover:bg-muted"
                               >
                                 {isExpanded ? "Hide" : "View"}
                               </button>
@@ -284,7 +346,7 @@ export default function TakeawaysPage() {
                         </tr>
                         {isExpanded ? (
                           <tr key={`${rowKey}-detail`} className="border-t border-border bg-muted/10">
-                            <td colSpan={10} className="px-4 py-4">
+                            <td colSpan={11} className="px-4 py-4">
                               <div className="space-y-3">
                                 <div className="flex items-center gap-2">
                                   <button
@@ -353,11 +415,11 @@ export default function TakeawaysPage() {
                                         </tbody>
                                       </table>
                                     </div>
-                                    <p className="pt-2 text-[11px] text-muted-foreground">
+                                    <p className="pt-0.5 text-[11px] text-muted-foreground">
                                       * Pass breakups/deflections, as credited by official charting
                                     </p>
-                                    <p className="text-[11px] text-muted-foreground">
-                                      ** Sum of by-play interception probabilities across this drive
+                                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                      ** Sum of play-by-play interception probabilities across this drive
                                     </p>
                                   </div>
                                 ) : (
@@ -401,10 +463,10 @@ export default function TakeawaysPage() {
                                         </tbody>
                                       </table>
                                     </div>
-                                    <p className="pt-2 text-[11px] text-muted-foreground">
+                                    <p className="pt-0.5 text-[11px] text-muted-foreground">
                                       * Pass breakups/deflections, as credited by official charting
                                     </p>
-                                    <p className="text-[11px] text-muted-foreground">
+                                    <p className="mt-0.5 text-[11px] text-muted-foreground">
                                       ** Model-estimated interception probability per play
                                     </p>
                                   </div>

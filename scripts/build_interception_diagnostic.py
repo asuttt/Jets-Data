@@ -59,15 +59,55 @@ def main() -> None:
     train_df = build_pass_defense_frame(df, team=args.team, seasons=train_seasons)
     eval_df = build_pass_defense_frame(df, team=args.team, seasons=eval_seasons)
 
+    eval_all_df = df.loc[df["season"].isin(eval_seasons)].copy()
+    if "season_type" in eval_all_df.columns:
+        eval_all_df = eval_all_df.loc[eval_all_df["season_type"] == "REG"]
+    eval_all_df = eval_all_df.loc[eval_all_df["pass_attempt"] == 1]
+    if "play_type" in eval_all_df.columns:
+        eval_all_df = eval_all_df.loc[eval_all_df["play_type"] != "no_play"]
+    eval_all_df["pass_defense"] = False
+    for col in ("pass_defense_1_player_id", "pass_defense_2_player_id"):
+        if col in eval_all_df.columns:
+            eval_all_df["pass_defense"] = eval_all_df["pass_defense"] | eval_all_df[col].notna()
+    for col in ("qb_hit", "sack"):
+        if col in eval_all_df.columns:
+            eval_all_df[col] = eval_all_df[col].astype("boolean").fillna(False).astype(int)
+        else:
+            eval_all_df[col] = 0
+    eval_all_df["interception"] = eval_all_df["interception"].fillna(0).astype(int)
+
     model = fit_int_model(train_df, config=IntModelConfig())
     eval_scored = apply_int_model(model, eval_df)
     train_scored = apply_int_model(model, train_df)
+    eval_all_scored = apply_int_model(model, eval_all_df)
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     games = build_games_index(df, team=args.team, season=args.eval_season)
     per_game = summarize_per_game(eval_scored, games)
+
+    offense_games = (
+        eval_all_scored.groupby(["posteam", "game_id", "defteam"], as_index=False)
+        .agg(
+            interceptions=("interception", "sum"),
+            expected_ints=("expected_ints", "sum"),
+        )
+    )
+    opponent_avgs = (
+        offense_games.loc[offense_games["defteam"] != args.team]
+        .groupby("posteam", as_index=False)
+        .agg(
+            opp_avg_ints_per_game=("interceptions", "mean"),
+            opp_avg_expected_ints_per_game=("expected_ints", "mean"),
+        )
+    )
+    per_game = per_game.merge(
+        opponent_avgs,
+        left_on="opponent",
+        right_on="posteam",
+        how="left",
+    ).drop(columns=["posteam"], errors="ignore")
 
     per_game_path = out_dir / f"{args.team.lower()}_{args.eval_season}_int_per_game.csv"
     per_game.to_csv(per_game_path, index=False)
@@ -131,7 +171,23 @@ def main() -> None:
         else:
             logging.warning("Drive column not found; skipping drive detail output.")
 
-    season_summary = build_season_comparison(eval_scored, train_scored)
+    league_team_season = (
+        eval_all_scored.groupby("defteam", as_index=False)
+        .agg(
+            pass_attempt=("pass_attempt", "size"),
+            interception=("interception", "sum"),
+            pass_defense=("pass_defense", "sum"),
+            qb_hit=("qb_hit", "sum"),
+            sack=("sack", "sum"),
+            expected_ints=("expected_ints", "sum"),
+        )
+        .rename(columns={"defteam": "team"})
+    )
+    season_summary = build_season_comparison(
+        eval_scored,
+        train_scored,
+        league_eval_avg_df=league_team_season,
+    )
     summary_path = out_dir / f"{args.team.lower()}_{args.eval_season}_int_summary.csv"
     season_summary.to_csv(summary_path, index=False)
 

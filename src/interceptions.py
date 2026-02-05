@@ -42,6 +42,8 @@ def build_pass_defense_frame(
 
     seasons = list(seasons)
     frame = df.loc[df["season"].isin(seasons)].copy()
+    if "season_type" in frame.columns:
+        frame = frame.loc[frame["season_type"] == "REG"]
     frame = frame.loc[frame["defteam"] == team]
 
     frame = frame.loc[frame["pass_attempt"] == 1]
@@ -135,6 +137,8 @@ def build_games_index(df: pd.DataFrame, *, team: str, season: int) -> pd.DataFra
         raise KeyError(f"Missing required columns for games index: {sorted(missing)}")
 
     season_df = df.loc[df["season"] == season].copy()
+    if "season_type" in season_df.columns:
+        season_df = season_df.loc[season_df["season_type"] == "REG"]
     agg = {
         "game_date": "max",
         "home_team": "max",
@@ -201,8 +205,32 @@ def summarize_season(
 def build_season_comparison(
     jets_df: pd.DataFrame,
     league_df: pd.DataFrame,
+    league_eval_avg_df: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Compare Jets season to league baseline."""
     jets = summarize_season(jets_df, scope="NYJ 2025")
     league = summarize_season(league_df, scope="League 2016-2024")
-    return pd.concat([league, jets], ignore_index=True)
+    parts = [league, jets]
+    if league_eval_avg_df is not None and not league_eval_avg_df.empty:
+        league_eval_avg = pd.DataFrame(
+            {
+                "scope": ["League 2025 Avg Team"],
+                "pass_attempts": [league_eval_avg_df["pass_attempt"].mean()],
+                "interceptions": [league_eval_avg_df["interception"].mean()],
+                "pass_defenses": [league_eval_avg_df["pass_defense"].mean()],
+                "qb_hits": [league_eval_avg_df["qb_hit"].mean()],
+                "sacks": [league_eval_avg_df["sack"].mean()],
+                "expected_ints": [league_eval_avg_df["expected_ints"].mean()],
+            }
+        )
+        league_eval_avg["int_rate"] = (
+            league_eval_avg["interceptions"] / league_eval_avg["pass_attempts"]
+        )
+        league_eval_avg["expected_int_rate"] = (
+            league_eval_avg["expected_ints"] / league_eval_avg["pass_attempts"]
+        )
+        league_eval_avg["expected_minus_actual"] = (
+            league_eval_avg["expected_ints"] - league_eval_avg["interceptions"]
+        )
+        parts.append(league_eval_avg)
+    return pd.concat(parts, ignore_index=True)
