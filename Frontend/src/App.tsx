@@ -43,7 +43,7 @@ function AppShell() {
       <main className="mx-auto max-w-6xl px-6 py-8">
         <Outlet />
         <p className="mt-8 text-center text-xs text-muted-foreground/80">
-          &copy;Arseni Sutton. Proprietary analytics work. All data sourced from nflfastR.
+          &copy; 2026 Arseni Sutton. All rights reserved. Duplication or reuse is strictly prohibited. Data sourced from nflfastR. Logos are property of New York Jets, LLC
         </p>
       </main>
     </div>
