@@ -116,6 +116,18 @@ function actionChipClass(action?: string) {
   return "border-border bg-white text-foreground";
 }
 
+function gameElapsedSeconds(clockDisplay?: string) {
+  if (!clockDisplay) return -1;
+  const match = clockDisplay.match(/^Q(\d)\s*-\s*(\d{1,2}):(\d{2})$/i);
+  if (!match) return -1;
+  const qtr = Number(match[1]);
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3]);
+  if ([qtr, minutes, seconds].some(Number.isNaN)) return -1;
+  const timeLeftInQuarter = minutes * 60 + seconds;
+  return (qtr - 1) * 900 + (900 - timeLeftInQuarter);
+}
+
 export default function FourthDownPage() {
   const [range, setRange] = useState(rangeOptions[0].value);
   const [games, setGames] = useState<GameRow[]>([]);
@@ -162,10 +174,9 @@ export default function FourthDownPage() {
     return cards
       .filter((card) => card.game_id === activeGame)
       .sort((a, b) => {
-        const qtrA = Number(a.clock_display?.split(" ")[0]?.replace("Q", ""));
-        const qtrB = Number(b.clock_display?.split(" ")[0]?.replace("Q", ""));
-        if (Number.isNaN(qtrA) || Number.isNaN(qtrB)) return 0;
-        return qtrB - qtrA;
+        const elapsedA = gameElapsedSeconds(a.clock_display);
+        const elapsedB = gameElapsedSeconds(b.clock_display);
+        return elapsedB - elapsedA;
       });
   }, [cards, activeGame]);
 
@@ -305,30 +316,34 @@ export default function FourthDownPage() {
                     <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
                       <span>Win %</span>
                       <div className="flex items-center gap-2">
-                        <span
-                          className={[
-                            "rounded-full border px-2 py-1 text-[11px] font-semibold",
-                            actionChipClass("punt"),
-                          ].join(" ")}
-                        >
-                          P {formatPercent(card.exp_wp_punt)}
-                        </span>
-                        <span
-                          className={[
-                            "rounded-full border px-2 py-1 text-[11px] font-semibold",
-                            actionChipClass("field_goal"),
-                          ].join(" ")}
-                        >
-                          FG {formatPercent(card.exp_wp_field_goal)}
-                        </span>
-                        <span
-                          className={[
-                            "rounded-full border px-2 py-1 text-[11px] font-semibold",
-                            actionChipClass("go"),
-                          ].join(" ")}
-                        >
-                          GO {formatPercent(card.exp_wp_go)}
-                        </span>
+                        {[
+                          { label: "P", value: card.exp_wp_punt, action: "punt" },
+                          { label: "FG", value: card.exp_wp_field_goal, action: "field_goal" },
+                          { label: "GO", value: card.exp_wp_go, action: "go" },
+                        ]
+                          .filter((chip) => {
+                            const num = Number(chip.value);
+                            return !Number.isNaN(num) && num > 0;
+                          })
+                          .map((chip) => (
+                            <span
+                              key={chip.label}
+                              className={[
+                                "rounded-full border px-2 py-1 text-[11px] font-semibold",
+                                actionChipClass(chip.action),
+                              ].join(" ")}
+                            >
+                              {chip.label} {formatPercent(chip.value)}
+                            </span>
+                          ))}
+                        {[
+                          card.exp_wp_punt,
+                          card.exp_wp_field_goal,
+                          card.exp_wp_go,
+                        ].every((value) => {
+                          const num = Number(value);
+                          return Number.isNaN(num) || num <= 0;
+                        }) && <span className="text-[11px] font-semibold text-muted-foreground">--</span>}
                       </div>
                     </div>
                     <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
