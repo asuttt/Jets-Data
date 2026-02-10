@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.fourth_down import build_fourth_down_frame
 from src.fourth_down_model import (
     apply_expected_wp,
+    fit_break_even_table,
     fit_expected_wp_table,
     summarize_expected_wp,
 )
@@ -93,6 +94,11 @@ def build_cards(df: pd.DataFrame, games: pd.DataFrame, *, team: str, season: int
         "exp_wp_punt_display",
         "exp_wp_field_goal_display",
         "exp_wp_recommendation_edge",
+        "field_goal_chance",
+        "first_down_chance",
+        "break_even_first_down_chance",
+        "break_even_conflict_flag",
+        "break_even_conflict_reason",
         "wp",
         "post_wp",
         "desc",
@@ -134,7 +140,14 @@ def main() -> None:
     eval_df = fourth_down.loc[fourth_down["season"] == args.eval_season]
 
     expected_table, global_means = fit_expected_wp_table(train_df)
-    eval_expected = apply_expected_wp(eval_df, expected_table, global_means)
+    break_even_table, break_even_global = fit_break_even_table(train_df)
+    eval_expected = apply_expected_wp(
+        eval_df,
+        expected_table,
+        global_means,
+        break_even_table=break_even_table,
+        break_even_global=break_even_global,
+    )
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -157,6 +170,66 @@ def main() -> None:
     cards = build_cards(eval_expected, games, team=args.team, season=args.eval_season)
     cards_path = out_dir / f"{args.team.lower()}_{args.eval_season}_fourth_down_cards.csv"
     cards.to_csv(cards_path, index=False)
+
+    conflict_cols = [
+        "game_id",
+        "game_date",
+        "posteam",
+        "defteam",
+        "clock_display",
+        "score_display",
+        "down_distance",
+        "field_position_display",
+        "decision",
+        "best_decision",
+        "first_down_chance",
+        "break_even_first_down_chance",
+        "field_goal_chance",
+        "exp_wp_go_display",
+        "exp_wp_punt_display",
+        "exp_wp_field_goal_display",
+        "break_even_conflict_reason",
+        "desc",
+    ]
+    conflict_keep = [col for col in conflict_cols if col in eval_expected.columns]
+    conflict_df = eval_expected.loc[
+        eval_expected["break_even_conflict_flag"] == True, conflict_keep
+    ].copy()
+    conflict_path = out_dir / "fourth_down_break_even_conflicts.csv"
+    conflict_df.to_csv(conflict_path, index=False)
+
+    conflict_rate = (
+        float(eval_expected["break_even_conflict_flag"].mean())
+        if len(eval_expected)
+        else 0.0
+    )
+    logging.info(
+        "Break-even conflicts: %s/%s (%.1f%%)",
+        f"{len(conflict_df):,}",
+        f"{len(eval_expected):,}",
+        conflict_rate * 100.0,
+    )
+
+    if {"shadow_best_decision", "shadow_changes_recommendation", "shadow_decision_matches_actual", "decision_matches_best", "shadow_break_even_available"} <= set(eval_expected.columns):
+        shadow_change_rate = float(eval_expected["shadow_changes_recommendation"].mean())
+        shadow_match_rate = float(eval_expected["shadow_decision_matches_actual"].mean())
+        current_match_rate = float(eval_expected["decision_matches_best"].mean())
+        shadow_available_rate = float(eval_expected["shadow_break_even_available"].mean())
+        logging.info(
+            "Shadow recommendation availability: %.1f%%",
+            shadow_available_rate * 100.0,
+        )
+        logging.info(
+            "Shadow recommendation changes: %s/%s (%.1f%%)",
+            f"{int(eval_expected['shadow_changes_recommendation'].sum()):,}",
+            f"{len(eval_expected):,}",
+            shadow_change_rate * 100.0,
+        )
+        logging.info(
+            "Match rate current vs shadow: %.1f%% vs %.1f%%",
+            current_match_rate * 100.0,
+            shadow_match_rate * 100.0,
+        )
 
     logging.info("Wrote expected WP outputs to %s", out_dir)
 

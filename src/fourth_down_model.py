@@ -128,10 +128,114 @@ def fit_expected_wp_table(
     return table, global_means
 
 
+def fit_break_even_table(
+    df: pd.DataFrame,
+    *,
+    decision_col: str = "decision",
+    wp_col: str = "wp",
+    wpa_col: str = "wpa",
+    config: BucketConfig | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Fit diagnostic components for conversion chance and break-even math."""
+    required = {
+        "ydstogo",
+        "yardline_100",
+        "score_differential",
+        "game_seconds_remaining",
+        "fourth_down_converted",
+        "field_goal_result",
+    }
+    missing = required - set(df.columns)
+    if missing:
+        raise KeyError(f"Missing required columns: {sorted(missing)}")
+
+    bucketed = add_buckets(df, config=config)
+    bucketed = bucketed.assign(post_wp=_post_wp(bucketed, wp_col=wp_col, wpa_col=wpa_col))
+
+    if "season" in bucketed.columns:
+        season_weights = pd.Series(0.8, index=bucketed.index)
+        season_weights = season_weights.mask(bucketed["season"].isin([2018, 2019]), 0.85)
+        season_weights = season_weights.mask(bucketed["season"].isin([2020, 2021]), 0.9)
+        season_weights = season_weights.mask(bucketed["season"].isin([2022, 2023]), 0.95)
+        season_weights = season_weights.mask(bucketed["season"] == 2024, 1.0)
+    else:
+        season_weights = pd.Series(1.0, index=bucketed.index)
+    bucketed["sample_weight"] = season_weights
+
+    go_df = bucketed.loc[bucketed[decision_col] == "go"].copy()
+    go_df["go_success"] = go_df["fourth_down_converted"].astype("boolean").fillna(False)
+    go_df["go_plays"] = go_df["sample_weight"]
+    go_df["go_converted_plays"] = go_df["sample_weight"] * go_df["go_success"].astype(float)
+    go_df["go_success_plays"] = go_df["sample_weight"] * go_df["go_success"].astype(float)
+    go_df["go_fail_plays"] = go_df["sample_weight"] * (~go_df["go_success"]).astype(float)
+    go_df["go_success_weighted_post_wp_sum"] = (
+        go_df["post_wp"] * go_df["go_success_plays"]
+    )
+    go_df["go_fail_weighted_post_wp_sum"] = (
+        go_df["post_wp"] * go_df["go_fail_plays"]
+    )
+
+    fg_df = bucketed.loc[bucketed[decision_col] == "field_goal"].copy()
+    fg_result = fg_df["field_goal_result"].astype(str).str.lower()
+    fg_df["fg_made"] = fg_result.isin({"made", "good"})
+    fg_df["fg_plays"] = fg_df["sample_weight"]
+    fg_df["fg_made_plays"] = fg_df["sample_weight"] * fg_df["fg_made"].astype(float)
+
+    group_cols = [
+        "ydstogo_bin",
+        "yardline_bin",
+        "yardline_25_bin",
+        "score_diff_bin",
+        "time_bin",
+    ]
+
+    go_agg = (
+        go_df.groupby(group_cols, dropna=False)
+        .agg(
+            go_plays=("go_plays", "sum"),
+            go_converted_plays=("go_converted_plays", "sum"),
+            go_success_plays=("go_success_plays", "sum"),
+            go_fail_plays=("go_fail_plays", "sum"),
+            go_success_weighted_post_wp_sum=("go_success_weighted_post_wp_sum", "sum"),
+            go_fail_weighted_post_wp_sum=("go_fail_weighted_post_wp_sum", "sum"),
+        )
+        .reset_index()
+    )
+    fg_agg = (
+        fg_df.groupby(group_cols, dropna=False)
+        .agg(
+            fg_plays=("fg_plays", "sum"),
+            fg_made_plays=("fg_made_plays", "sum"),
+        )
+        .reset_index()
+    )
+    table = go_agg.merge(fg_agg, on=group_cols, how="outer")
+
+    global_row = pd.DataFrame(
+        [
+            {
+                "go_plays": go_df["go_plays"].sum(),
+                "go_converted_plays": go_df["go_converted_plays"].sum(),
+                "go_success_plays": go_df["go_success_plays"].sum(),
+                "go_fail_plays": go_df["go_fail_plays"].sum(),
+                "go_success_weighted_post_wp_sum": go_df["go_success_weighted_post_wp_sum"].sum(),
+                "go_fail_weighted_post_wp_sum": go_df["go_fail_weighted_post_wp_sum"].sum(),
+                "fg_plays": fg_df["fg_plays"].sum(),
+                "fg_made_plays": fg_df["fg_made_plays"].sum(),
+            }
+        ]
+    )
+
+    LOGGER.info("Break-even table rows: %s", f"{len(table):,}")
+    return table, global_row
+
+
 def apply_expected_wp(
     df: pd.DataFrame,
     expected_table: pd.DataFrame,
     global_means: pd.DataFrame | None = None,
+    break_even_table: pd.DataFrame | None = None,
+    break_even_global: pd.DataFrame | None = None,
     *,
     decision_col: str = "decision",
     wp_col: str = "wp",
@@ -181,6 +285,16 @@ def apply_expected_wp(
     punt_penalty_30: float = 0.30,
     punt_penalty_40: float = 0.50,
     punt_penalty_45: float = 0.70,
+    min_plays_break_even: int = 5,
+    min_plays_go_success_fail: int = 3,
+    break_even_prob_prior_alpha: float = 1.0,
+    break_even_prob_prior_beta: float = 1.0,
+    break_even_wp_shrink_k: float = 10.0,
+    break_even_min_denominator: float = 0.05,
+    break_even_floor: float = 0.05,
+    break_even_ceiling: float = 0.95,
+    break_even_conflict_buffer: float = 0.00,
+    break_even_shadow_epsilon: float = 0.03,
     config: BucketConfig | None = None,
 ) -> pd.DataFrame:
     """Attach expected post-play WP for each decision to a dataset."""
@@ -261,6 +375,198 @@ def apply_expected_wp(
             merged.loc[fill_mask, exp_col] = merged.loc[fill_mask, level_wp_col]
             merged.loc[fill_mask, plays_col] = merged.loc[fill_mask, level_plays_col]
             merged.loc[fill_mask, source_col] = level_idx
+
+    merged["first_down_chance"] = pd.NA
+    merged["field_goal_chance"] = pd.NA
+    merged["go_wp_success"] = pd.NA
+    merged["go_wp_fail"] = pd.NA
+    merged["break_even_support_plays"] = pd.NA
+    merged["go_wp_success_support_plays"] = pd.NA
+    merged["go_wp_fail_support_plays"] = pd.NA
+    merged["first_down_chance_source_level"] = pd.NA
+    merged["field_goal_chance_source_level"] = pd.NA
+    merged["go_wp_success_source_level"] = pd.NA
+    merged["go_wp_fail_source_level"] = pd.NA
+
+    if break_even_table is not None and not break_even_table.empty:
+        def _aggregate_break_even_level(keys: list[str]) -> pd.DataFrame:
+            cols = [
+                *keys,
+                "go_plays",
+                "go_converted_plays",
+                "go_success_plays",
+                "go_fail_plays",
+                "go_success_weighted_post_wp_sum",
+                "go_fail_weighted_post_wp_sum",
+                "fg_plays",
+                "fg_made_plays",
+            ]
+            level = break_even_table.loc[:, cols].copy()
+            return (
+                level.groupby(keys, dropna=False)
+                .agg(
+                    go_plays=("go_plays", "sum"),
+                    go_converted_plays=("go_converted_plays", "sum"),
+                    go_success_plays=("go_success_plays", "sum"),
+                    go_fail_plays=("go_fail_plays", "sum"),
+                    go_success_weighted_post_wp_sum=("go_success_weighted_post_wp_sum", "sum"),
+                    go_fail_weighted_post_wp_sum=("go_fail_weighted_post_wp_sum", "sum"),
+                    fg_plays=("fg_plays", "sum"),
+                    fg_made_plays=("fg_made_plays", "sum"),
+                )
+                .reset_index()
+            )
+
+        for level_idx, keys in enumerate(level_keys):
+            agg = _aggregate_break_even_level(keys)
+            agg[f"first_down_chance_l{level_idx}"] = agg["go_converted_plays"] / agg["go_plays"]
+            agg[f"field_goal_chance_l{level_idx}"] = agg["fg_made_plays"] / agg["fg_plays"]
+            agg[f"go_wp_success_l{level_idx}"] = (
+                agg["go_success_weighted_post_wp_sum"] / agg["go_success_plays"]
+            )
+            agg[f"go_wp_fail_l{level_idx}"] = (
+                agg["go_fail_weighted_post_wp_sum"] / agg["go_fail_plays"]
+            )
+
+            agg = agg.rename(
+                columns={
+                    "go_plays": f"diag_go_plays_l{level_idx}",
+                    "go_success_plays": f"diag_go_success_plays_l{level_idx}",
+                    "go_fail_plays": f"diag_go_fail_plays_l{level_idx}",
+                    "fg_plays": f"diag_fg_plays_l{level_idx}",
+                }
+            )
+
+            keep_cols = [
+                *keys,
+                f"diag_go_plays_l{level_idx}",
+                f"diag_go_success_plays_l{level_idx}",
+                f"diag_go_fail_plays_l{level_idx}",
+                f"diag_fg_plays_l{level_idx}",
+                f"first_down_chance_l{level_idx}",
+                f"field_goal_chance_l{level_idx}",
+                f"go_wp_success_l{level_idx}",
+                f"go_wp_fail_l{level_idx}",
+            ]
+            merged = merged.merge(agg.loc[:, keep_cols], on=keys, how="left")
+
+            first_down_mask = (
+                merged["first_down_chance"].isna()
+                & merged[f"first_down_chance_l{level_idx}"].notna()
+                & (merged[f"diag_go_plays_l{level_idx}"] >= min_plays_break_even)
+            )
+            merged.loc[first_down_mask, "first_down_chance"] = merged.loc[
+                first_down_mask, f"first_down_chance_l{level_idx}"
+            ]
+            merged.loc[first_down_mask, "break_even_support_plays"] = merged.loc[
+                first_down_mask, f"diag_go_plays_l{level_idx}"
+            ]
+            merged.loc[first_down_mask, "first_down_chance_source_level"] = level_idx
+
+            fg_chance_mask = (
+                merged["field_goal_chance"].isna()
+                & merged[f"field_goal_chance_l{level_idx}"].notna()
+                & (merged[f"diag_fg_plays_l{level_idx}"] >= min_plays_break_even)
+            )
+            merged.loc[fg_chance_mask, "field_goal_chance"] = merged.loc[
+                fg_chance_mask, f"field_goal_chance_l{level_idx}"
+            ]
+            merged.loc[fg_chance_mask, "field_goal_chance_source_level"] = level_idx
+
+            go_success_mask = (
+                merged["go_wp_success"].isna()
+                & merged[f"go_wp_success_l{level_idx}"].notna()
+                & (merged[f"diag_go_success_plays_l{level_idx}"] >= min_plays_go_success_fail)
+            )
+            merged.loc[go_success_mask, "go_wp_success"] = merged.loc[
+                go_success_mask, f"go_wp_success_l{level_idx}"
+            ]
+            merged.loc[go_success_mask, "go_wp_success_support_plays"] = merged.loc[
+                go_success_mask, f"diag_go_success_plays_l{level_idx}"
+            ]
+            merged.loc[go_success_mask, "go_wp_success_source_level"] = level_idx
+
+            go_fail_mask = (
+                merged["go_wp_fail"].isna()
+                & merged[f"go_wp_fail_l{level_idx}"].notna()
+                & (merged[f"diag_go_fail_plays_l{level_idx}"] >= min_plays_go_success_fail)
+            )
+            merged.loc[go_fail_mask, "go_wp_fail"] = merged.loc[
+                go_fail_mask, f"go_wp_fail_l{level_idx}"
+            ]
+            merged.loc[go_fail_mask, "go_wp_fail_support_plays"] = merged.loc[
+                go_fail_mask, f"diag_go_fail_plays_l{level_idx}"
+            ]
+            merged.loc[go_fail_mask, "go_wp_fail_source_level"] = level_idx
+
+        if break_even_global is not None and not break_even_global.empty:
+            global_row = break_even_global.iloc[0]
+            go_plays = float(global_row.get("go_plays", 0))
+            fg_plays = float(global_row.get("fg_plays", 0))
+            go_success_plays = float(global_row.get("go_success_plays", 0))
+            go_fail_plays = float(global_row.get("go_fail_plays", 0))
+
+            global_first_down = (
+                float(global_row["go_converted_plays"]) / go_plays
+                if go_plays > 0
+                else pd.NA
+            )
+            global_fg_chance = (
+                float(global_row["fg_made_plays"]) / fg_plays
+                if fg_plays > 0
+                else pd.NA
+            )
+            global_go_wp_success = (
+                float(global_row["go_success_weighted_post_wp_sum"]) / go_success_plays
+                if go_success_plays > 0
+                else pd.NA
+            )
+            global_go_wp_fail = (
+                float(global_row["go_fail_weighted_post_wp_sum"]) / go_fail_plays
+                if go_fail_plays > 0
+                else pd.NA
+            )
+
+            merged["first_down_chance"] = merged["first_down_chance"].fillna(global_first_down)
+            merged["field_goal_chance"] = merged["field_goal_chance"].fillna(global_fg_chance)
+            merged["go_wp_success"] = merged["go_wp_success"].fillna(global_go_wp_success)
+            merged["go_wp_fail"] = merged["go_wp_fail"].fillna(global_go_wp_fail)
+            merged["break_even_support_plays"] = merged["break_even_support_plays"].fillna(go_plays)
+            merged["go_wp_success_support_plays"] = merged["go_wp_success_support_plays"].fillna(
+                go_success_plays
+            )
+            merged["go_wp_fail_support_plays"] = merged["go_wp_fail_support_plays"].fillna(
+                go_fail_plays
+            )
+
+            # Stabilize GO success/fail WP diagnostics via empirical shrinkage.
+            success_weight = merged["go_wp_success_support_plays"] / (
+                merged["go_wp_success_support_plays"] + break_even_wp_shrink_k
+            )
+            fail_weight = merged["go_wp_fail_support_plays"] / (
+                merged["go_wp_fail_support_plays"] + break_even_wp_shrink_k
+            )
+            merged["go_wp_success"] = (
+                success_weight * merged["go_wp_success"]
+                + (1.0 - success_weight) * global_go_wp_success
+            )
+            merged["go_wp_fail"] = (
+                fail_weight * merged["go_wp_fail"]
+                + (1.0 - fail_weight) * global_go_wp_fail
+            )
+
+            merged["first_down_chance_source_level"] = merged[
+                "first_down_chance_source_level"
+            ].fillna("global")
+            merged["field_goal_chance_source_level"] = merged[
+                "field_goal_chance_source_level"
+            ].fillna("global")
+            merged["go_wp_success_source_level"] = merged[
+                "go_wp_success_source_level"
+            ].fillna("global")
+            merged["go_wp_fail_source_level"] = merged[
+                "go_wp_fail_source_level"
+            ].fillna("global")
 
     merged["expected_kick_distance"] = merged["yardline_100"] + 17
     merged.loc[
@@ -474,6 +780,77 @@ def apply_expected_wp(
     merged["exp_wp_go_display"] = merged["exp_wp_go_effective"]
     merged["exp_wp_punt_display"] = merged["exp_wp_punt_effective"]
     merged["exp_wp_field_goal_display"] = merged["exp_wp_field_goal_effective"]
+
+    merged["best_non_go_wp_display"] = merged[
+        ["exp_wp_punt_display", "exp_wp_field_goal_display"]
+    ].max(axis=1, skipna=True)
+    break_even_denominator = merged["go_wp_success"] - merged["go_wp_fail"]
+    merged["break_even_first_down_chance"] = pd.NA
+    valid_break_even = (
+        merged["go_wp_success"].notna()
+        & merged["go_wp_fail"].notna()
+        & merged["best_non_go_wp_display"].notna()
+        & break_even_denominator.notna()
+        & (break_even_denominator >= break_even_min_denominator)
+    )
+    merged.loc[valid_break_even, "break_even_first_down_chance"] = (
+        (merged.loc[valid_break_even, "best_non_go_wp_display"] - merged.loc[valid_break_even, "go_wp_fail"])
+        / break_even_denominator.loc[valid_break_even]
+    ).clip(lower=0.0, upper=1.0)
+    # Pull break-even away from hard 0/1 in low-support situations.
+    be_weight = merged["break_even_support_plays"] / (
+        merged["break_even_support_plays"] + break_even_wp_shrink_k
+    )
+    merged["break_even_first_down_chance"] = (
+        be_weight * merged["break_even_first_down_chance"]
+        + (1.0 - be_weight) * 0.5
+    )
+    merged["break_even_first_down_chance"] = merged["break_even_first_down_chance"].clip(
+        lower=break_even_floor,
+        upper=break_even_ceiling,
+    )
+
+    merged["break_even_conflict_flag"] = False
+    merged["break_even_conflict_reason"] = pd.NA
+    conflict_ready = merged["first_down_chance"].notna() & merged["break_even_first_down_chance"].notna()
+    recommend_go = merged["best_decision"] == "go"
+    go_conflict = conflict_ready & recommend_go & (
+        merged["first_down_chance"] < (merged["break_even_first_down_chance"] + break_even_conflict_buffer)
+    )
+    merged.loc[go_conflict, "break_even_conflict_flag"] = True
+    merged.loc[go_conflict, "break_even_conflict_reason"] = "recommended_go_but_below_break_even"
+
+    # Shadow mode only: derive an alternate recommendation from break-even logic.
+    # This does not alter live recommendation columns; it is for diagnostics.
+    non_go_cols = ["exp_wp_punt_effective", "exp_wp_field_goal_effective"]
+    non_go_best_idx = merged[non_go_cols].fillna(-1e9).idxmax(axis=1)
+    non_go_best_idx = non_go_best_idx.mask(merged[non_go_cols].isna().all(axis=1), pd.NA)
+    merged["shadow_non_go_decision"] = non_go_best_idx.str.replace("exp_wp_", "", regex=False)
+    merged["shadow_non_go_decision"] = merged["shadow_non_go_decision"].str.replace(
+        "_effective", "", regex=False
+    )
+
+    merged["shadow_break_even_available"] = (
+        merged["first_down_chance"].notna() & merged["break_even_first_down_chance"].notna()
+    )
+    shadow_go_mask = merged["shadow_break_even_available"] & (
+        merged["first_down_chance"] >= (merged["break_even_first_down_chance"] + break_even_shadow_epsilon)
+    )
+    merged["shadow_best_decision"] = merged["best_decision"]
+    merged.loc[merged["shadow_break_even_available"], "shadow_best_decision"] = merged.loc[
+        merged["shadow_break_even_available"], "shadow_non_go_decision"
+    ]
+    merged.loc[shadow_go_mask, "shadow_best_decision"] = "go"
+    # If non-go options are unavailable, keep current best decision in shadow mode.
+    merged.loc[
+        merged["shadow_break_even_available"] & merged["shadow_non_go_decision"].isna(),
+        "shadow_best_decision",
+    ] = merged.loc[
+        merged["shadow_break_even_available"] & merged["shadow_non_go_decision"].isna(),
+        "best_decision",
+    ]
+    merged["shadow_changes_recommendation"] = merged["shadow_best_decision"] != merged["best_decision"]
+    merged["shadow_decision_matches_actual"] = merged[decision_col] == merged["shadow_best_decision"]
 
     merged["exp_wp_actual"] = merged["exp_wp_go"]
     merged.loc[merged[decision_col] == "punt", "exp_wp_actual"] = merged["exp_wp_punt"]

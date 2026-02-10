@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { loadCsv } from "../lib/csv";
 import { buildDataUrl } from "../lib/dataSource";
 
@@ -24,6 +25,11 @@ type CardRow = {
   exp_wp_punt_display: string;
   exp_wp_field_goal_display: string;
   exp_wp_recommendation_edge: string;
+  field_goal_chance: string;
+  first_down_chance: string;
+  break_even_first_down_chance: string;
+  break_even_conflict_flag: string;
+  break_even_conflict_reason: string;
   desc: string;
 };
 
@@ -102,6 +108,19 @@ function normalizeDecision(value?: string) {
   return normalized;
 }
 
+function breakEvenTooltipMessage(conflictFlag?: string) {
+  if (conflictFlag === "True") {
+    return "The minimum first down chance that favors GO.\n\nWarning: break-even check disagrees with recommended action.";
+  }
+  return "The minimum first down chance that favors GO.";
+}
+
+type BreakEvenTooltipState = {
+  x: number;
+  y: number;
+  conflict: boolean;
+};
+
 function actionChipClass(action?: string) {
   const normalized = normalizeDecision(action);
   if (normalized === "punt") {
@@ -134,6 +153,7 @@ export default function FourthDownPage() {
   const [cards, setCards] = useState<CardRow[]>([]);
   const [activeGame, setActiveGame] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [breakEvenTooltip, setBreakEvenTooltip] = useState<BreakEvenTooltipState | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -193,6 +213,29 @@ export default function FourthDownPage() {
       return { week, game: byWeek.get(week) ?? null };
     });
   }, [games]);
+
+  const showBreakEvenTooltip = (
+    event: ReactMouseEvent<HTMLButtonElement> | ReactFocusEvent<HTMLButtonElement>,
+    conflictFlag?: string
+  ) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const tooltipWidth = 220;
+    const tooltipRightShift = 15;
+    const left = Math.min(
+      window.innerWidth - tooltipWidth - 12,
+      Math.max(12, rect.left + rect.width / 2 - tooltipWidth / 2 + tooltipRightShift)
+    );
+    const top = Math.max(12, rect.top - 10);
+    setBreakEvenTooltip({
+      x: left,
+      y: top,
+      conflict: conflictFlag === "True",
+    });
+  };
+
+  const hideBreakEvenTooltip = () => {
+    setBreakEvenTooltip(null);
+  };
 
   return (
     <section className="space-y-3">
@@ -396,19 +439,37 @@ export default function FourthDownPage() {
                     <div className="flex items-center justify-between">
                       <span>Field Goal Chance</span>
                       <span className="font-semibold text-foreground">
-                        {formatPercent(card.exp_wp_field_goal_display)}
+                        {formatPercent(card.field_goal_chance)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>First Down Chance</span>
                       <span className="font-semibold text-foreground">
-                        {formatPercent(card.exp_wp_go_display)}
+                        {formatPercent(card.first_down_chance)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>Break-even</span>
+                      <div className="flex items-center gap-1">
+                        <span>Break-even</span>
+                        <button
+                          type="button"
+                          onMouseEnter={(event) => showBreakEvenTooltip(event, card.break_even_conflict_flag)}
+                          onMouseLeave={hideBreakEvenTooltip}
+                          onFocus={(event) => showBreakEvenTooltip(event, card.break_even_conflict_flag)}
+                          onBlur={hideBreakEvenTooltip}
+                          className={[
+                            "inline-flex h-auto min-h-0 items-center justify-center p-0 text-[14px] leading-none",
+                            card.break_even_conflict_flag === "True"
+                              ? "text-red-700"
+                              : "text-muted-foreground",
+                          ].join(" ")}
+                          aria-label={breakEvenTooltipMessage(card.break_even_conflict_flag)}
+                        >
+                          ⓘ
+                        </button>
+                      </div>
                       <span className="font-semibold text-foreground">
-                        {formatPercent(card.exp_wp_punt_display)}
+                        {formatPercent(card.break_even_first_down_chance)}
                       </span>
                     </div>
                     <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
@@ -426,6 +487,22 @@ export default function FourthDownPage() {
           ))}
         </div>
       )}
+      {typeof document !== "undefined" && breakEvenTooltip
+        ? createPortal(
+            <div
+              className="pointer-events-none fixed z-[100] w-[220px] -translate-y-full rounded-md border border-border bg-white p-2 text-[11px] leading-snug text-muted-foreground shadow-md"
+              style={{ left: `${breakEvenTooltip.x}px`, top: `${breakEvenTooltip.y}px` }}
+            >
+              <p>The minimum first down chance that favors GO</p>
+              {breakEvenTooltip.conflict && (
+                <p className="mt-1 text-red-700">
+                  Warning: break-even check disagrees with recommended action
+                </p>
+              )}
+            </div>,
+            document.body
+          )
+        : null}
     </section>
   );
 }

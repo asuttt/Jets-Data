@@ -32,6 +32,7 @@ DEFAULT_COLUMNS: tuple[str, ...] = (
     "desc",
     "punt_attempt",
     "field_goal_attempt",
+    "field_goal_result",
     "qb_kneel",
     "qb_spike",
     "penalty",

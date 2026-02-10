@@ -3,6 +3,7 @@
 Last updated: 2026-02-09
 Current decision match rate (NYJ 2025): 75.0%
 Current low-sample flag rate (NYJ 2025): 0.0%
+Current break-even conflict rate (NYJ 2025): 2.1% (3/140)
 
 ## Purpose
 Track all non-obvious modeling choices for the fourth-down recommendation system so assumptions are explicit, reviewable, and auditable over time.
@@ -100,10 +101,16 @@ These adjust *effective* recommendation values without mutating raw modeled WP c
 ### Ultra-Long Distance Brake
 - Block GO effective option on very long distance unless explicit late-desperation exception applies.
 
+## Fourth Down Tab Assumptions
+This file tracks assumptions used by the 4th-down tab, including both recommendation logic and break-even diagnostics.
+
 ## Break-Even (UI)
 Current state:
-- The card-back `Break-even` value is currently a display placeholder mapped to `exp_wp_punt`.
-- It is **not** a true conversion break-even threshold in the current pipeline.
+- The card-back diagnostics now use dedicated outputs:
+  - `field_goal_chance` (historical make probability)
+  - `first_down_chance` (historical 4th-down conversion probability)
+  - `break_even_first_down_chance` (minimum conversion chance where GO matches best non-GO WP)
+- These diagnostics are display-only and do not change recommendation selection.
 
 ## Recommendation Display Consistency
 - Front-card Win% values are rendered from strategy-adjusted effective columns:
@@ -123,14 +130,20 @@ What true break-even would mean:
   - `WP_go_success`: expected post-play WP if conversion succeeds
   - `WP_go_fail`: expected post-play WP if conversion fails
 
-Why it is not implemented yet:
-- Current model stores outcome-level expected post-play WP by decision (`go/punt/field_goal`) but does not split `GO` into success/failure states.
-- Without separate `WP_go_success` and `WP_go_fail`, true break-even cannot be computed directly.
+Implementation notes:
+- `WP_go_success` and `WP_go_fail` are estimated from historical GO plays using the same bucket fallback pipeline.
+- Break-even conflict audit is exported as `break_even_conflict_flag` / `break_even_conflict_reason`.
 
-If implemented later:
-- Add success/failure-conditioned GO estimates from historical data.
-- Compute and export `go_break_even_conversion_prob` as a dedicated artifact column.
-- Update card label from placeholder to true break-even.
+### Recommendation vs Break-Even Alignment
+- Recommendation and break-even both originate from the same historical 4th-down dataset.
+- They currently use different decision paths:
+  - Recommendation: max strategy-adjusted effective WP (`GO`, `Punt`, `FG`).
+  - Break-even: conversion-threshold test (`first_down_chance` vs `break_even_first_down_chance`).
+- A scoped shadow-mode canonical GO test was evaluated to improve consistency:
+  - Scope: Q4, trailing, `ydstogo <= 5`, break-even available.
+  - Rule: recommend GO when `first_down_chance >= break_even + 0.03`.
+  - Result (shadow-only): match rate improved from 74.3% to 74.9% with low change rate (2.26% of plays).
+  - Disagreements do not go to zero, but decline versus current broad check.
 
 ## Low-Sample Flag
 - `low_sample_flag` is based on raw data coverage count, not strategy-blocked effective options.
