@@ -200,7 +200,7 @@ export default function TakeawaysPage() {
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold text-foreground">Takeaway Analysis</h1>
         <p className="text-sm text-muted-foreground">
-          Evaluate interception opportunities and outcomes across the 2025 season.
+          Evaluate interception opportunities and outcomes across the 2025 season
         </p>
       </div>
 
@@ -212,20 +212,20 @@ export default function TakeawaysPage() {
         ) : (
           <>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-border bg-white px-4 py-4 shadow-sm">
+            <div className="rounded-2xl border border-[hsl(160_66%_21%/.15)] bg-[hsl(160_66%_21%/.08)] px-4 py-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actual INTs</p>
               <div className="mt-2 flex items-end justify-between gap-3">
                 <p className="text-2xl font-semibold text-foreground">{fmt(jetsSummary?.interceptions ?? "--", 0)}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-foreground/70">
                   League Avg: {fmtLeaguePerTeamNoDecimals(leagueAvgSummary?.interceptions ?? "--")}
                 </p>
               </div>
             </div>
-            <div className="rounded-2xl border border-border bg-white px-4 py-4 shadow-sm">
+            <div className="rounded-2xl border border-[hsl(160_66%_21%/.22)] bg-[hsl(160_66%_21%/.14)] px-4 py-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expected INTs</p>
               <div className="mt-2 flex items-end justify-between gap-3">
                 <p className="text-2xl font-semibold text-foreground">{fmt(jetsSummary?.expected_ints ?? "--", 2)}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-foreground/70">
                   League Avg: {fmtLeaguePerTeamNoDecimals(leagueAvgSummary?.expected_ints ?? "--")}
                 </p>
               </div>
@@ -271,7 +271,7 @@ export default function TakeawaysPage() {
                             ) : (
                               <div className="flex items-center justify-center gap-2">
                                 {getLogo(row!.opponent) ? (
-                                  <img src={getLogo(row!.opponent) as string} alt={row!.opponent} className="h-4 w-4 object-contain" />
+                                  <img src={getLogo(row!.opponent) as string} alt={row!.opponent} className="h-7 w-7 object-contain" />
                                 ) : null}
                                 <span>{row!.home_away === "away" ? `@${row!.opponent}` : row!.opponent}</span>
                               </div>
