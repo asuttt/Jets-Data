@@ -172,6 +172,15 @@ def apply_expected_wp(
     early_redzone_max_ydstogo: int = 3,
     early_redzone_go_boost: float = 0.10,
     early_redzone_fg_penalty: float = 0.75,
+    two_minute_trailing_time_seconds: int = 120,
+    two_minute_trailing_max_yardline: int = 60,
+    two_minute_trailing_max_ydstogo: int = 10,
+    two_minute_trailing_go_boost: float = 0.18,
+    punt_penalty_10: float = 0.05,
+    punt_penalty_20: float = 0.15,
+    punt_penalty_30: float = 0.30,
+    punt_penalty_40: float = 0.50,
+    punt_penalty_45: float = 0.70,
     config: BucketConfig | None = None,
 ) -> pd.DataFrame:
     """Attach expected post-play WP for each decision to a dataset."""
@@ -257,8 +266,6 @@ def apply_expected_wp(
     merged.loc[
         merged["expected_kick_distance"] > max_field_goal_distance, "exp_wp_field_goal"
     ] = pd.NA
-    # Modern NFL guardrail: punts this deep in opponent territory are effectively off-table.
-    merged.loc[merged["yardline_100"] <= 45, "exp_wp_punt"] = pd.NA
 
     # Policy overlay: in goal-to-go leverage spots, bias recommendation modestly toward GO.
     # Trigger if within opponent 5 and either trailing by 10+ or in 4th quarter.
@@ -285,6 +292,20 @@ def apply_expected_wp(
     merged["exp_wp_go_effective"] = merged["exp_wp_go_policy"]
     merged["exp_wp_punt_effective"] = merged["exp_wp_punt"]
     merged["exp_wp_field_goal_effective"] = merged["exp_wp_field_goal"]
+    # Soft feasibility penalty for punts in opponent territory (keeps option possible but unlikely).
+    punt_multiplier = pd.Series(1.0, index=merged.index)
+    punt_multiplier = punt_multiplier.mask(merged["yardline_100"] <= 45, punt_penalty_45)
+    punt_multiplier = punt_multiplier.mask(merged["yardline_100"] <= 40, punt_penalty_40)
+    punt_multiplier = punt_multiplier.mask(merged["yardline_100"] <= 30, punt_penalty_30)
+    punt_multiplier = punt_multiplier.mask(merged["yardline_100"] <= 20, punt_penalty_20)
+    punt_multiplier = punt_multiplier.mask(merged["yardline_100"] <= 10, punt_penalty_10)
+    merged["punt_penalty_multiplier"] = punt_multiplier
+    punt_penalty_mask = merged["exp_wp_punt_effective"].notna() & (merged["punt_penalty_multiplier"] < 1.0)
+    merged["rule_punt_penalty_territory"] = punt_penalty_mask
+    merged.loc[punt_penalty_mask, "exp_wp_punt_effective"] = (
+        merged.loc[punt_penalty_mask, "exp_wp_punt_effective"]
+        * merged.loc[punt_penalty_mask, "punt_penalty_multiplier"]
+    )
 
     # If trailing big late in realistic go territory on makeable distance, remove punt from options.
     aggressive_late_mask = (
@@ -381,6 +402,20 @@ def apply_expected_wp(
         * early_redzone_fg_penalty
     )
 
+    # Two-minute trailing aggression: strong GO boost when time is scarce and distance is manageable.
+    two_minute_trailing_mask = (
+        in_q4
+        & (merged["game_seconds_remaining"] <= two_minute_trailing_time_seconds)
+        & (merged["score_differential"] < 0)
+        & (merged["yardline_100"] <= two_minute_trailing_max_yardline)
+        & (merged["ydstogo"] <= two_minute_trailing_max_ydstogo)
+        & merged["exp_wp_go_effective"].notna()
+    )
+    merged["rule_go_boost_two_minute_trailing"] = two_minute_trailing_mask
+    merged.loc[two_minute_trailing_mask, "exp_wp_go_effective"] = (
+        merged.loc[two_minute_trailing_mask, "exp_wp_go_effective"] + two_minute_trailing_go_boost
+    ).clip(upper=1.0)
+
     # Must-score override: force GO recommendation in late 4Q, down 4+, ultra-short near goal line.
     # This is recommendation-only; raw expected WP columns remain unchanged for transparency.
     must_score_mask = (
@@ -399,8 +434,10 @@ def apply_expected_wp(
         | merged["rule_blocked_go_ultra_long"]
         | merged["rule_go_penalty_with_lead"]
         | merged["rule_blocked_field_goal_desperation"]
+        | merged["rule_punt_penalty_territory"]
         | merged["rule_go_boost_early_redzone"]
         | merged["rule_fg_penalty_early_redzone"]
+        | merged["rule_go_boost_two_minute_trailing"]
         | merged["must_score_override_applied"]
     )
 
@@ -420,10 +457,23 @@ def apply_expected_wp(
     all_na = merged[exp_cols_effective].isna().all(axis=1)
     best_idx = merged[exp_cols_effective].fillna(-1e9).idxmax(axis=1)
     best_idx = best_idx.mask(all_na, pd.NA)
+    sorted_effective = merged[exp_cols_effective].apply(
+        lambda row: sorted([v for v in row.tolist() if pd.notna(v)], reverse=True),
+        axis=1,
+    )
+    merged["exp_wp_second_best"] = sorted_effective.apply(
+        lambda vals: vals[1] if len(vals) > 1 else pd.NA
+    )
+    merged["exp_wp_recommendation_edge"] = merged["exp_wp_best"] - merged["exp_wp_second_best"]
     merged["best_decision"] = best_idx.str.replace("exp_wp_", "")
     merged["best_decision"] = merged["best_decision"].str.replace("_policy", "")
     merged["best_decision"] = merged["best_decision"].str.replace("_effective", "")
     merged.loc[merged["best_decision"].isna(), "best_decision"] = merged[decision_col]
+
+    # Display values must align with recommendation logic.
+    merged["exp_wp_go_display"] = merged["exp_wp_go_effective"]
+    merged["exp_wp_punt_display"] = merged["exp_wp_punt_effective"]
+    merged["exp_wp_field_goal_display"] = merged["exp_wp_field_goal_effective"]
 
     merged["exp_wp_actual"] = merged["exp_wp_go"]
     merged.loc[merged[decision_col] == "punt", "exp_wp_actual"] = merged["exp_wp_punt"]

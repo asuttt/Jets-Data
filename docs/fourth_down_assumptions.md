@@ -1,6 +1,8 @@
 # Fourth-Down Model Assumptions
 
 Last updated: 2026-02-09
+Current decision match rate (NYJ 2025): 75.0%
+Current low-sample flag rate (NYJ 2025): 0.0%
 
 ## Purpose
 Track all non-obvious modeling choices for the fourth-down recommendation system so assumptions are explicit, reviewable, and auditable over time.
@@ -85,6 +87,16 @@ These adjust *effective* recommendation values without mutating raw modeled WP c
   - GO effective `+0.10`
   - FG effective `* 0.75`
 
+### Two-Minute Trailing Aggression Rule
+- In Q4 with 2:00 or less, while trailing, and with manageable field/distance:
+  - GO effective `+0.18`
+- Trigger scope in code:
+  - `game_seconds_remaining <= 120`
+  - `score_differential < 0`
+  - `yardline_100 <= 60`
+  - `ydstogo <= 10`
+  - audit flag: `rule_go_boost_two_minute_trailing`
+
 ### Ultra-Long Distance Brake
 - Block GO effective option on very long distance unless explicit late-desperation exception applies.
 
@@ -92,6 +104,15 @@ These adjust *effective* recommendation values without mutating raw modeled WP c
 Current state:
 - The card-back `Break-even` value is currently a display placeholder mapped to `exp_wp_punt`.
 - It is **not** a true conversion break-even threshold in the current pipeline.
+
+## Recommendation Display Consistency
+- Front-card Win% values are rendered from strategy-adjusted effective columns:
+  - `exp_wp_go_display`
+  - `exp_wp_punt_display`
+  - `exp_wp_field_goal_display`
+- Recommendation is selected from the same effective values (`best_decision`), so displayed odds and recommendation are numerically aligned.
+- Recommendation edge shown in UI is:
+  - `exp_wp_recommendation_edge = best_effective_wp - second_best_effective_wp`
 
 What true break-even would mean:
 - Break-even conversion probability for `GO` is the minimum success rate where `GO` and baseline option are equal in expected WP.
@@ -132,3 +153,4 @@ For each tweak, append:
 ## Change Log
 - 2026-02-09: Created this assumptions tracker.
 - 2026-02-09: Added break-even explainer and clarified current UI placeholder behavior.
+- 2026-02-09: Added two-minute trailing GO boost rule and refreshed top-line NYJ 2025 metrics.

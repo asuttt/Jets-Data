@@ -20,10 +20,10 @@ type CardRow = {
   best_decision: string;
   decision_matches_best: string;
   low_sample_flag: string;
-  exp_wp_go: string;
-  exp_wp_punt: string;
-  exp_wp_field_goal: string;
-  exp_wp_best_minus_actual: string;
+  exp_wp_go_display: string;
+  exp_wp_punt_display: string;
+  exp_wp_field_goal_display: string;
+  exp_wp_recommendation_edge: string;
   desc: string;
 };
 
@@ -239,14 +239,22 @@ export default function FourthDownPage() {
                         : "bg-white text-foreground/80 hover:bg-muted",
                     ].join(" ")}
                   >
-                    <span>{slot.week}</span>
-                    {getTeamLogo(game.opponent) ? (
-                      <img
-                        src={getTeamLogo(game.opponent) as string}
-                        alt={game.opponent}
-                        className="h-5 w-5 object-contain"
-                      />
-                    ) : null}
+                    <div
+                      className={[
+                        "flex flex-col items-center gap-1",
+                        index === 0 ? "translate-x-[5px]" : "",
+                        index === weekSlots.length - 1 ? "-translate-x-[5px]" : "",
+                      ].join(" ")}
+                    >
+                      <span>{slot.week}</span>
+                      {getTeamLogo(game.opponent) ? (
+                        <img
+                          src={getTeamLogo(game.opponent) as string}
+                          alt={game.opponent}
+                          className="h-5 w-5 object-contain"
+                        />
+                      ) : null}
+                    </div>
                   </button>
                 );
               })}
@@ -317,9 +325,9 @@ export default function FourthDownPage() {
                       <span>Win %</span>
                       <div className="flex items-center gap-2">
                         {[
-                          { label: "P", value: card.exp_wp_punt, action: "punt" },
-                          { label: "FG", value: card.exp_wp_field_goal, action: "field_goal" },
-                          { label: "GO", value: card.exp_wp_go, action: "go" },
+                          { label: "P", value: card.exp_wp_punt_display, action: "punt" },
+                          { label: "FG", value: card.exp_wp_field_goal_display, action: "field_goal" },
+                          { label: "GO", value: card.exp_wp_go_display, action: "go" },
                         ]
                           .filter((chip) => {
                             const num = Number(chip.value);
@@ -337,9 +345,9 @@ export default function FourthDownPage() {
                             </span>
                           ))}
                         {[
-                          card.exp_wp_punt,
-                          card.exp_wp_field_goal,
-                          card.exp_wp_go,
+                          card.exp_wp_punt_display,
+                          card.exp_wp_field_goal_display,
+                          card.exp_wp_go_display,
                         ].every((value) => {
                           const num = Number(value);
                           return Number.isNaN(num) || num <= 0;
@@ -348,14 +356,26 @@ export default function FourthDownPage() {
                     </div>
                     <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
                       <span>Recommendation</span>
-                      <span
-                        className={[
-                          "rounded-full border px-2 py-1 text-[11px] font-semibold",
-                          actionChipClass(card.best_decision),
-                        ].join(" ")}
-                      >
-                        {formatDecisionLabel(card.best_decision)} ({formatDelta(card.exp_wp_best_minus_actual)})
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {card.low_sample_flag === "True" && (
+                          <div className="inline-flex">
+                            <button
+                              type="button"
+                              className="inline-flex h-5 min-h-0 items-center justify-center rounded-full border border-amber-300 bg-amber-50 px-2 text-[12px] font-bold leading-none text-amber-900 shadow-sm"
+                            >
+                              <span className="relative mt-[1px]">⚠</span>
+                            </button>
+                          </div>
+                        )}
+                        <span
+                          className={[
+                            "rounded-full border px-2 py-1 text-[11px] font-semibold",
+                            actionChipClass(card.best_decision),
+                          ].join(" ")}
+                        >
+                          {formatDecisionLabel(card.best_decision)} ({formatDelta(card.exp_wp_recommendation_edge)})
+                        </span>
+                      </div>
                     </div>
                     <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
                       <span>Decision</span>
@@ -368,37 +388,37 @@ export default function FourthDownPage() {
                         {formatDecisionLabel(card.decision)}
                       </span>
                     </div>
-                    {card.low_sample_flag === "True" && (
-                      <div className="rounded-lg border border-border bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-                        Low sample size warning
-                      </div>
-                    )}
                   </div>
                 </div>
 
-                <div className="flip-face flip-back rounded-2xl border border-border bg-white p-5 shadow-sm">
-                  <div className="space-y-4 text-sm text-muted-foreground">
+                <div className="flip-face flip-back h-full rounded-2xl border border-border bg-white p-5 shadow-sm">
+                  <div className="h-full space-y-4 overflow-y-auto pr-1 text-sm text-muted-foreground">
                     <div className="flex items-center justify-between">
                       <span>Field Goal Chance</span>
                       <span className="font-semibold text-foreground">
-                        {formatPercent(card.exp_wp_field_goal)}
+                        {formatPercent(card.exp_wp_field_goal_display)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>First Down Chance</span>
                       <span className="font-semibold text-foreground">
-                        {formatPercent(card.exp_wp_go)}
+                        {formatPercent(card.exp_wp_go_display)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Break-even</span>
                       <span className="font-semibold text-foreground">
-                        {formatPercent(card.exp_wp_punt)}
+                        {formatPercent(card.exp_wp_punt_display)}
                       </span>
                     </div>
                     <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
                       {card.desc || "Play description placeholder."}
                     </div>
+                    {card.low_sample_flag === "True" && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                        Low sample flag: this recommendation has limited historical comparables
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
