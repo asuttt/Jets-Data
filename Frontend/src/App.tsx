@@ -11,13 +11,13 @@ const navItems = [
 function AppShell() {
   return (
     <div className="min-h-screen bg-muted/40 text-foreground">
-      <header className="border-b border-border bg-white">
+      <header className="sticky top-0 z-50 border-b border-border bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
             <img src={primaryLogo} alt="Jets Data Analytics Tool" className="h-10 w-auto" />
             <div className="hidden sm:block">
-              <div className="text-lg font-semibold text-foreground">2025 Data Analytics Tool</div>
-              <div className="text-sm text-muted-foreground">Private Demo</div>
+              <div className="text-2xl font-bold text-foreground">2025 Data Analytics Tool</div>
+              <div className="text-sm italic text-muted-foreground">Private Demo</div>
             </div>
           </div>
           <nav className="flex items-center gap-4">

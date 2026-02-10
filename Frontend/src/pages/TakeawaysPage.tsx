@@ -204,7 +204,7 @@ export default function TakeawaysPage() {
         </p>
       </div>
 
-      <div className="mx-auto w-full max-w-5xl space-y-4 px-0">
+      <div className="mx-auto w-full max-w-[1320px] space-y-4 px-0">
         {error ? (
           <div className="rounded-2xl border border-border bg-white px-4 py-6 text-sm text-muted-foreground shadow-sm">
             {error}
