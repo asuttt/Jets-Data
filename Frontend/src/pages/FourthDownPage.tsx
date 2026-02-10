@@ -296,7 +296,27 @@ export default function FourthDownPage() {
               <div>
                 <h2 className="text-sm font-semibold text-foreground">Game Selector</h2>
                 <p className="mt-1 text-xs text-muted-foreground">Week and opponent</p>
-                <div className="relative mt-3">
+                <select
+                  value={activeGame ?? ""}
+                  onChange={(event) => setActiveGame(event.target.value)}
+                  className="mt-3 h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-foreground outline-none ring-0 focus:border-primary lg:hidden"
+                >
+                  {weekSlots.map((slot) => {
+                    if (!slot.game) {
+                      return (
+                        <option key={`mobile-week-${slot.week}`} disabled value={`bye-${slot.week}`}>
+                          Week {slot.week} - BYE
+                        </option>
+                      );
+                    }
+                    return (
+                      <option key={slot.game.game_id} value={slot.game.game_id}>
+                        Week {slot.week} - {slot.game.opponent}
+                      </option>
+                    );
+                  })}
+                </select>
+                <div className="relative mt-3 hidden lg:block">
                   <div ref={weekListRef} className="scrollbar-none max-h-[460px] space-y-2 overflow-y-auto pr-1">
                     {weekSlots.map((slot) => {
                       const game = slot.game;

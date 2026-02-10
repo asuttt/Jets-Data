@@ -233,8 +233,8 @@ export default function TakeawaysPage() {
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full table-fixed text-sm">
+            <div className="scrollbar-none overflow-x-auto">
+              <table className="min-w-[980px] table-fixed text-sm md:min-w-0 md:w-full">
                 <thead className="bg-muted/30 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <th className="w-[9.09%] px-2 py-2">Week</th>
@@ -376,7 +376,7 @@ export default function TakeawaysPage() {
                                 </div>
                                 {detailTab === "drive" ? (
                                   <div className="space-y-1">
-                                    <div className="overflow-x-auto">
+                                    <div className="scrollbar-none overflow-x-auto">
                                       <table className="w-full min-w-[620px] table-fixed text-xs">
                                         <thead className="text-center text-muted-foreground">
                                           <tr>
@@ -424,7 +424,7 @@ export default function TakeawaysPage() {
                                   </div>
                                 ) : (
                                   <div className="space-y-1">
-                                    <div className="overflow-x-auto">
+                                    <div className="scrollbar-none overflow-x-auto">
                                       <table className="w-full min-w-[760px] text-xs">
                                         <thead className="text-center text-muted-foreground">
                                           <tr>
