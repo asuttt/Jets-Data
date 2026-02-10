@@ -279,7 +279,7 @@ export default function FourthDownPage() {
   return (
     <section className="space-y-3">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold text-foreground">4th Down Decision Analysis</h1>
+        <h1 className="text-xl font-medium text-foreground">4th Down Decision Analysis</h1>
         <p className="text-sm text-muted-foreground">
           Review every 4th down of the season by game & compare decision recommendations
         </p>
