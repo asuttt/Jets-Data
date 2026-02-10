@@ -1,6 +1,6 @@
 # Fourth-Down Model Assumptions
 
-Last updated: 2026-02-09
+Last updated: 2026-02-10
 Current decision match rate (NYJ 2025): 75.0%
 Current low-sample flag rate (NYJ 2025): 0.0%
 Current break-even conflict rate (NYJ 2025): 2.1% (3/140)
@@ -150,10 +150,16 @@ Implementation notes:
 - Current criterion:
   - `valid_decision_count < 2`
 
+## Range Sensitivity (NYJ 2025)
+- Baseline retained: `2016-2024` (`75.0%` match; `105/140`).
+- `2018-2024`: `73.6%` match (`103/140`), with `4/140` recommendation changes vs baseline.
+- `2020-2024`: `74.3%` match (`104/140`), with `10/140` recommendation changes vs baseline.
+- Interpretation: range selection changes a small share of recommendations; baseline remains default.
+
 ## Current Known Limitations
 - Estimates are observational (historical outcomes), not full counterfactual simulation.
 - Strategy layer is heuristic and intentionally opinionated; it can improve practical recommendations while reducing pure model transparency.
-- Range selector UI currently may be cosmetic unless range-specific card CSVs are generated and synced.
+- Range selector behavior depends on range-specific card CSV artifacts being generated and synced.
 
 ## Suggested Change Log Practice
 For each tweak, append:

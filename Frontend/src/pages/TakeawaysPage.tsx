@@ -8,6 +8,9 @@ type SummaryRow = {
   interceptions: string;
   expected_ints: string;
   expected_minus_actual: string;
+  jets_actual_int_rank_label_2025?: string;
+  jets_expected_int_rank_label_2025?: string;
+  league_team_count_2025?: string;
 };
 
 type PerGameRow = {
@@ -124,7 +127,12 @@ function fmtFixedOrDash(value: string | number, digits = 2) {
 function fmtLeaguePerTeamNoDecimals(value: string | number) {
   const num = Number(value);
   if (Number.isNaN(num)) return "--";
-  return `${Math.round(num / 32)}`;
+  return `${Math.round(num)}`;
+}
+
+function fmtRankLabel(value: string | undefined) {
+  const text = (value ?? "").trim();
+  return text.length ? text : "--";
 }
 
 export default function TakeawaysPage() {
@@ -198,7 +206,7 @@ export default function TakeawaysPage() {
   return (
     <section className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold text-foreground">Takeaway Analysis</h1>
+        <h1 className="text-xl font-medium text-foreground">Takeaway Analysis</h1>
         <p className="text-sm text-muted-foreground">
           Evaluate interception opportunities and outcomes across the 2025 season
         </p>
@@ -216,18 +224,40 @@ export default function TakeawaysPage() {
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actual INTs</p>
               <div className="mt-2 flex items-end justify-between gap-3">
                 <p className="text-2xl font-semibold text-foreground">{fmt(jetsSummary?.interceptions ?? "--", 0)}</p>
-                <p className="text-xs text-foreground/70">
-                  League Avg: {fmtLeaguePerTeamNoDecimals(leagueAvgSummary?.interceptions ?? "--")}
-                </p>
+                <div className="text-right">
+                  <p className="text-xs text-foreground/70">
+                    League Avg:{" "}
+                    <span className="font-semibold">
+                      {fmtLeaguePerTeamNoDecimals(leagueAvgSummary?.interceptions ?? "--")}
+                    </span>
+                  </p>
+                  <p className="mt-0.5 text-xs text-foreground/70">
+                    Jets 2025 Rank:{" "}
+                    <span className="font-semibold">
+                      {fmtRankLabel(leagueAvgSummary?.jets_actual_int_rank_label_2025)}
+                    </span>
+                  </p>
+                </div>
               </div>
             </div>
             <div className="rounded-2xl border border-[hsl(160_66%_21%/.22)] bg-[hsl(160_66%_21%/.14)] px-4 py-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expected INTs</p>
               <div className="mt-2 flex items-end justify-between gap-3">
                 <p className="text-2xl font-semibold text-foreground">{fmt(jetsSummary?.expected_ints ?? "--", 2)}</p>
-                <p className="text-xs text-foreground/70">
-                  League Avg: {fmtLeaguePerTeamNoDecimals(leagueAvgSummary?.expected_ints ?? "--")}
-                </p>
+                <div className="text-right">
+                  <p className="text-xs text-foreground/70">
+                    League Avg:{" "}
+                    <span className="font-semibold">
+                      {fmtLeaguePerTeamNoDecimals(leagueAvgSummary?.expected_ints ?? "--")}
+                    </span>
+                  </p>
+                  <p className="mt-0.5 text-xs text-foreground/70">
+                    Jets 2025 Rank:{" "}
+                    <span className="font-semibold">
+                      {fmtRankLabel(leagueAvgSummary?.jets_expected_int_rank_label_2025)}
+                    </span>
+                  </p>
+                </div>
               </div>
             </div>
           </div>

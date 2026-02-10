@@ -22,6 +22,20 @@ from src.interceptions import (
 from src.io import load_pbp
 
 
+def _ordinal(rank: int) -> str:
+    if 10 <= rank % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(rank % 10, "th")
+    return f"{rank}{suffix}"
+
+
+def _tie_rank_label(rank: int, tie_count: int) -> str:
+    if tie_count > 1:
+        return f"Tied-{_ordinal(rank)}"
+    return _ordinal(rank)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build INT drought diagnostics.")
     parser.add_argument("--train-start", type=int, default=2016, help="Train start.")
@@ -183,10 +197,55 @@ def main() -> None:
         )
         .rename(columns={"defteam": "team"})
     )
+
+    # Proof export: team-level 2025 INT and expected INT rankings.
+    int_counts = league_team_season["interception"].value_counts()
+    exp_counts = league_team_season["expected_ints"].round(2).value_counts()
+
+    rankings = league_team_season.copy()
+    rankings["actual_int_rank"] = (
+        rankings["interception"].rank(ascending=False, method="min").astype(int)
+    )
+    rankings["expected_int_rank"] = (
+        rankings["expected_ints"].rank(ascending=False, method="min").astype(int)
+    )
+    rankings["actual_int_tie_count"] = rankings["interception"].map(int_counts).astype(int)
+    rankings["expected_int_tie_count"] = (
+        rankings["expected_ints"].round(2).map(exp_counts).astype(int)
+    )
+    rankings["actual_int_rank_label"] = rankings.apply(
+        lambda row: _tie_rank_label(int(row["actual_int_rank"]), int(row["actual_int_tie_count"])),
+        axis=1,
+    )
+    rankings["expected_int_rank_label"] = rankings.apply(
+        lambda row: _tie_rank_label(
+            int(row["expected_int_rank"]),
+            int(row["expected_int_tie_count"]),
+        ),
+        axis=1,
+    )
+    rankings = rankings.rename(
+        columns={
+            "interception": "actual_ints",
+            "expected_ints": "expected_ints_total",
+            "pass_attempt": "pass_attempts_faced",
+            "pass_defense": "pass_defenses",
+            "qb_hit": "qb_hits",
+            "sack": "sacks",
+        }
+    )
+    rankings = rankings.sort_values(
+        ["actual_int_rank", "expected_int_rank", "team"],
+        ascending=[True, True, True],
+    )
+    rankings_path = out_dir / f"league_{args.eval_season}_int_rankings_by_team.csv"
+    rankings.to_csv(rankings_path, index=False)
+
     season_summary = build_season_comparison(
         eval_scored,
         train_scored,
         league_eval_avg_df=league_team_season,
+        team=args.team,
     )
     summary_path = out_dir / f"{args.team.lower()}_{args.eval_season}_int_summary.csv"
     season_summary.to_csv(summary_path, index=False)

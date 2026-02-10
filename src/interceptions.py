@@ -18,6 +18,20 @@ class IntModelConfig:
     min_plays_for_model: int = 5000
 
 
+def _ordinal(rank: int) -> str:
+    if 10 <= rank % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(rank % 10, "th")
+    return f"{rank}{suffix}"
+
+
+def _tie_rank_label(rank: int, tie_count: int) -> str:
+    if tie_count > 1:
+        return f"Tied-{_ordinal(rank)}"
+    return _ordinal(rank)
+
+
 def build_pass_defense_frame(
     df: pd.DataFrame,
     *,
@@ -206,6 +220,8 @@ def build_season_comparison(
     jets_df: pd.DataFrame,
     league_df: pd.DataFrame,
     league_eval_avg_df: pd.DataFrame | None = None,
+    *,
+    team: str = "NYJ",
 ) -> pd.DataFrame:
     """Compare Jets season to league baseline."""
     jets = summarize_season(jets_df, scope="NYJ 2025")
@@ -232,5 +248,25 @@ def build_season_comparison(
         league_eval_avg["expected_minus_actual"] = (
             league_eval_avg["expected_ints"] - league_eval_avg["interceptions"]
         )
+
+        jets_team_row = league_eval_avg_df.loc[league_eval_avg_df["team"] == team]
+        team_count = int(league_eval_avg_df["team"].nunique())
+        if not jets_team_row.empty and team_count > 0:
+            jets_idx = jets_team_row.index[0]
+            int_rank = int(
+                league_eval_avg_df["interception"].rank(ascending=False, method="min").loc[jets_idx]
+            )
+            exp_rank = int(
+                league_eval_avg_df["expected_ints"].rank(ascending=False, method="min").loc[jets_idx]
+            )
+
+            int_ties = int((league_eval_avg_df["interception"] == jets_team_row["interception"].iloc[0]).sum())
+            exp_ties = int((league_eval_avg_df["expected_ints"].round(2) == round(float(jets_team_row["expected_ints"].iloc[0]), 2)).sum())
+
+            league_eval_avg["jets_actual_int_rank_2025"] = int_rank
+            league_eval_avg["jets_expected_int_rank_2025"] = exp_rank
+            league_eval_avg["jets_actual_int_rank_label_2025"] = _tie_rank_label(int_rank, int_ties)
+            league_eval_avg["jets_expected_int_rank_label_2025"] = _tie_rank_label(exp_rank, exp_ties)
+            league_eval_avg["league_team_count_2025"] = team_count
         parts.append(league_eval_avg)
     return pd.concat(parts, ignore_index=True)
