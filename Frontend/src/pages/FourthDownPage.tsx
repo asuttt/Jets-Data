@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { loadCsv } from "../lib/csv";
 import { buildDataUrl } from "../lib/dataSource";
@@ -85,6 +85,12 @@ function formatPercent(value?: string) {
   return `${(num * 100).toFixed(1)}%`;
 }
 
+function formatPercentChip(value?: string) {
+  const num = Number(value);
+  if (Number.isNaN(num)) return "--";
+  return `${(num * 100).toFixed(1)}%`;
+}
+
 function formatDelta(value?: string) {
   const num = Number(value);
   if (Number.isNaN(num)) return "--";
@@ -98,6 +104,15 @@ function formatDecisionLabel(value?: string) {
   if (normalized === "punt") return "Punt";
   if (normalized === "go") return "GO";
   if (normalized === "field_goal" || normalized === "field goal") return "Field Goal";
+  return value;
+}
+
+function formatDecisionShortLabel(value?: string) {
+  if (!value) return "TBD";
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "punt") return "P";
+  if (normalized === "go") return "GO";
+  if (normalized === "field_goal" || normalized === "field goal") return "FG";
   return value;
 }
 
@@ -154,6 +169,9 @@ export default function FourthDownPage() {
   const [activeGame, setActiveGame] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [breakEvenTooltip, setBreakEvenTooltip] = useState<BreakEvenTooltipState | null>(null);
+  const [showRailTopFade, setShowRailTopFade] = useState(false);
+  const [showRailBottomFade, setShowRailBottomFade] = useState(true);
+  const weekListRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -188,6 +206,27 @@ export default function FourthDownPage() {
       mounted = false;
     };
   }, [range, activeGame]);
+
+  useEffect(() => {
+    const list = weekListRef.current;
+    if (!list) return;
+
+    const updateFade = () => {
+      const hasAbove = list.scrollTop > 1;
+      const remaining = list.scrollHeight - list.scrollTop - list.clientHeight;
+      const hasBelow = remaining > 1;
+      setShowRailTopFade(hasAbove);
+      setShowRailBottomFade(hasBelow);
+    };
+
+    updateFade();
+    list.addEventListener("scroll", updateFade, { passive: true });
+    window.addEventListener("resize", updateFade);
+    return () => {
+      list.removeEventListener("scroll", updateFade);
+      window.removeEventListener("resize", updateFade);
+    };
+  }, [games, range]);
 
   const activeCards = useMemo(() => {
     if (!activeGame) return [];
@@ -242,101 +281,106 @@ export default function FourthDownPage() {
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold text-foreground">4th Down Decision Analysis</h1>
         <p className="text-sm text-muted-foreground">
-          Review every Jets 4th down by game & compare decision recommendations
+          Review every 4th down of the season by game & compare decision recommendations
         </p>
       </div>
 
-      <div className="mx-auto w-full max-w-5xl space-y-3 px-0">
-        <div className="space-y-2">
-          <div className="overflow-hidden rounded-full border border-border bg-white">
-            <div
-              className="grid w-full items-stretch [grid-template-columns:repeat(18,minmax(0,1fr))] xl:justify-center xl:[grid-template-columns:64px_repeat(16,56px)_64px]"
-            >
-              {weekSlots.map((slot, index) => {
-                const game = slot.game;
-                if (!game) {
-                  return (
-                    <div
-                      key={`week-${slot.week}`}
-                      className={[
-                        "flex w-full flex-col items-center justify-center gap-1 px-3 py-4 text-xs font-semibold text-muted-foreground",
-                        index !== 0 ? "border-l border-border" : "",
-                      ].join(" ")}
-                    >
-                      <span>{slot.week}</span>
-                      <span className="text-[10px]">Bye</span>
-                    </div>
-                  );
-                }
-
-                return (
-                  <button
-                    key={game.game_id}
-                    type="button"
-                    onClick={() => setActiveGame(game.game_id)}
-                    className={[
-                      "flex w-full flex-col items-center justify-center gap-1 px-3 py-4 text-xs font-semibold transition-colors",
-                      index !== 0 ? "border-l border-border" : "",
-                      activeGame === game.game_id
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-white text-foreground/80 hover:bg-muted",
-                    ].join(" ")}
-                  >
-                    <div
-                      className={[
-                        "flex flex-col items-center gap-1",
-                        index === 0 ? "translate-x-[5px]" : "",
-                        index === weekSlots.length - 1 ? "-translate-x-[5px]" : "",
-                      ].join(" ")}
-                    >
-                      <span>{slot.week}</span>
-                      {getTeamLogo(game.opponent) ? (
-                        <img
-                          src={getTeamLogo(game.opponent) as string}
-                          alt={game.opponent}
-                          className="h-5 w-5 object-contain"
-                        />
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <p className="text-sm font-semibold text-foreground">Testing Range</p>
-          <div className="flex flex-wrap gap-3">
-            {rangeOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setRange(option.value)}
-                className={[
-                  "rounded-full border px-5 py-2 text-xs font-semibold transition-colors",
-                  range === option.value
-                    ? "border-transparent bg-primary text-primary-foreground"
-                    : "border-border bg-white text-foreground/80 hover:bg-primary hover:text-primary-foreground",
-                ].join(" ")}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {error ? (
-        <div className="mx-auto max-w-5xl rounded-2xl border border-border bg-white px-4 py-6 text-sm text-muted-foreground shadow-sm">
+        <div className="mx-auto max-w-[1320px] rounded-2xl border border-border bg-white px-4 py-6 text-sm text-muted-foreground shadow-sm">
           {error}
         </div>
       ) : (
-        <div className="mx-auto mt-8 grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {activeCards.map((card, idx) => (
-            <div key={`${card.game_id}-${idx}`} className="flip-card group">
-              <div className="flip-inner">
-                <div className="flip-face rounded-2xl border border-border bg-white p-5 shadow-sm">
+        <div className="mx-auto grid w-full max-w-[1320px] items-start gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+          <aside className="h-fit rounded-2xl border border-border bg-white p-4 shadow-sm lg:sticky lg:top-24">
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Game Selector</h2>
+                <p className="mt-1 text-xs text-muted-foreground">Week and opponent</p>
+                <div className="relative mt-3">
+                  <div ref={weekListRef} className="scrollbar-none max-h-[460px] space-y-2 overflow-y-auto pr-1">
+                    {weekSlots.map((slot) => {
+                      const game = slot.game;
+                      if (!game) {
+                        return (
+                          <div
+                            key={`week-${slot.week}`}
+                            className="flex min-h-[44px] items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground"
+                          >
+                            <span className="font-medium">Week {slot.week}</span>
+                            <span>BYE</span>
+                          </div>
+                        );
+                      }
+
+                      const logo = getTeamLogo(game.opponent);
+                      return (
+                        <button
+                          key={game.game_id}
+                          type="button"
+                          onClick={() => setActiveGame(game.game_id)}
+                          className={[
+                            "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-xs font-medium transition-colors",
+                            activeGame === game.game_id
+                              ? "border-transparent bg-primary text-primary-foreground"
+                              : "border-border bg-white text-foreground/80 hover:bg-muted",
+                          ].join(" ")}
+                        >
+                          <span>Week {slot.week}</span>
+                          <span className="flex items-center gap-2">
+                            <span>{game.opponent}</span>
+                            {logo ? (
+                              <img src={logo} alt={game.opponent} className="h-7 w-7 object-contain" />
+                            ) : null}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {showRailTopFade ? (
+                    <div className="pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-white via-white/80 to-transparent" />
+                  ) : null}
+                  {showRailBottomFade ? (
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white via-white/80 to-transparent" />
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="border-t border-border pt-4">
+                <label htmlFor="testing-range" className="text-sm font-semibold text-foreground">
+                  Testing Range
+                </label>
+                <select
+                  id="testing-range"
+                  value={range}
+                  onChange={(event) => setRange(event.target.value)}
+                  className="mt-2 h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-foreground outline-none ring-0 focus:border-primary"
+                >
+                  {rangeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </aside>
+
+          <div className="self-start grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {activeCards.map((card, idx) => {
+              const winChips = [
+                { label: "P", value: card.exp_wp_punt_display, action: "punt" },
+                { label: "FG", value: card.exp_wp_field_goal_display, action: "field_goal" },
+                { label: "GO", value: card.exp_wp_go_display, action: "go" },
+              ].filter((chip) => {
+                const num = Number(chip.value);
+                return !Number.isNaN(num) && num > 0;
+              });
+              const hasThreeWinChips = winChips.length >= 3;
+
+              return (
+            <div key={`${card.game_id}-${idx}`} className="flip-card group h-full">
+              <div className="flip-inner h-full">
+                <div className="flip-face flex h-full flex-col rounded-2xl border border-border bg-white p-5 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="h-12 w-12 rounded-xl border border-border bg-white p-1">
@@ -364,27 +408,35 @@ export default function FourthDownPage() {
                   </div>
 
                   <div className="mt-4 space-y-3 text-xs text-muted-foreground">
-                    <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
-                      <span>Win %</span>
-                      <div className="flex items-center gap-2">
-                        {[
-                          { label: "P", value: card.exp_wp_punt_display, action: "punt" },
-                          { label: "FG", value: card.exp_wp_field_goal_display, action: "field_goal" },
-                          { label: "GO", value: card.exp_wp_go_display, action: "go" },
-                        ]
-                          .filter((chip) => {
-                            const num = Number(chip.value);
-                            return !Number.isNaN(num) && num > 0;
-                          })
-                          .map((chip) => (
+                    <div
+                      className={[
+                        "grid min-h-[44px] grid-cols-[74px_minmax(0,1fr)] rounded-lg border border-border bg-muted/40 px-3 py-2",
+                        hasThreeWinChips ? "items-center xl:min-h-[72px] xl:items-start" : "items-center",
+                      ].join(" ")}
+                    >
+                      <span
+                        className={[
+                          "shrink-0 whitespace-nowrap",
+                          hasThreeWinChips ? "xl:pt-[1px]" : "",
+                        ].join(" ")}
+                      >
+                        Win %
+                      </span>
+                      <div
+                        className={[
+                          "flex min-w-0 items-center justify-end gap-1",
+                          hasThreeWinChips ? "flex-nowrap xl:flex-wrap" : "flex-nowrap",
+                        ].join(" ")}
+                      >
+                        {winChips.map((chip) => (
                             <span
                               key={chip.label}
                               className={[
-                                "rounded-full border px-2 py-1 text-[11px] font-semibold",
+                                "whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-semibold",
                                 actionChipClass(chip.action),
                               ].join(" ")}
                             >
-                              {chip.label} {formatPercent(chip.value)}
+                              {chip.label} {formatPercentChip(chip.value)}
                             </span>
                           ))}
                         {[
@@ -397,9 +449,9 @@ export default function FourthDownPage() {
                         }) && <span className="text-[11px] font-semibold text-muted-foreground">--</span>}
                       </div>
                     </div>
-                    <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
-                      <span>Recommendation</span>
-                      <div className="flex items-center gap-2">
+                    <div className="grid grid-cols-[96px_minmax(0,1fr)] items-center rounded-lg border border-border bg-muted/40 px-3 py-2">
+                      <span className="shrink-0 whitespace-nowrap">Recommendation</span>
+                      <div className="flex min-w-0 items-center justify-end gap-1">
                         {card.low_sample_flag === "True" && (
                           <div className="inline-flex">
                             <button
@@ -411,31 +463,35 @@ export default function FourthDownPage() {
                           </div>
                         )}
                         <span
+                          title={formatDecisionLabel(card.best_decision)}
                           className={[
-                            "rounded-full border px-2 py-1 text-[11px] font-semibold",
+                            "whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-semibold",
                             actionChipClass(card.best_decision),
                           ].join(" ")}
                         >
-                          {formatDecisionLabel(card.best_decision)} ({formatDelta(card.exp_wp_recommendation_edge)})
+                          {formatDecisionShortLabel(card.best_decision)} ({formatDelta(card.exp_wp_recommendation_edge)})
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
-                      <span>Decision</span>
-                      <span
-                        className={[
-                          "rounded-full border px-2 py-1 text-[11px] font-semibold",
-                          actionChipClass(card.decision),
-                        ].join(" ")}
-                      >
-                        {formatDecisionLabel(card.decision)}
-                      </span>
+                    <div className="grid grid-cols-[96px_minmax(0,1fr)] items-center rounded-lg border border-border bg-muted/40 px-3 py-2">
+                      <span className="shrink-0 whitespace-nowrap">Decision</span>
+                      <div className="flex min-w-0 justify-end">
+                        <span
+                          title={formatDecisionLabel(card.decision)}
+                          className={[
+                            "whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                            actionChipClass(card.decision),
+                          ].join(" ")}
+                        >
+                          {formatDecisionLabel(card.decision)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="flip-face flip-back h-full rounded-2xl border border-border bg-white p-5 shadow-sm">
-                  <div className="h-full space-y-4 overflow-y-auto pr-1 text-sm text-muted-foreground">
+                  <div className="scrollbar-none h-full space-y-4 overflow-y-auto pr-1 text-sm text-muted-foreground">
                     <div className="flex items-center justify-between">
                       <span>Field Goal Chance</span>
                       <span className="font-semibold text-foreground">
@@ -484,7 +540,9 @@ export default function FourthDownPage() {
                 </div>
               </div>
             </div>
-          ))}
+              );
+          })}
+          </div>
         </div>
       )}
       {typeof document !== "undefined" && breakEvenTooltip
