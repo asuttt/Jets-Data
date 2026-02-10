@@ -7,7 +7,7 @@ import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / "artifacts"
-FRONTEND_DATA = ROOT / "Frontend" / "public" / "data"
+FRONTEND_DATA = ROOT / "frontend" / "public" / "data"
 
 FILES = [
     "nyj_2025_games.csv",

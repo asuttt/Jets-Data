@@ -162,7 +162,7 @@ export default function TakeawaysPage() {
         setPlayDetail(playRows);
       } catch {
         if (!mounted) return;
-        setError("INT data not found in Frontend/public/data.");
+        setError("INT data not found in frontend/public/data.");
       }
     };
     loadData();

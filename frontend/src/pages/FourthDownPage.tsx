@@ -198,7 +198,7 @@ export default function FourthDownPage() {
         }
       } catch (err) {
         if (!mounted) return;
-        setError("Data not found. Copy CSVs into Frontend/public/data.");
+        setError("Data not found. Copy CSVs into frontend/public/data.");
       }
     };
     loadData();
