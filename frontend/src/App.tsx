@@ -21,7 +21,7 @@ function AppShell() {
                 <div className="truncate text-base font-bold leading-tight text-foreground sm:text-2xl">
                   2025 Data Analytics Tool
                 </div>
-                <div className="truncate text-xs italic text-muted-foreground sm:text-sm">Private Demo</div>
+                <div className="truncate text-xs italic text-muted-foreground sm:text-sm">Demo purposes only.</div>
               </div>
             </div>
           </div>
