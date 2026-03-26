@@ -1,10 +1,10 @@
 # raw data (never commit)
 data/
-!Frontend/public/data/
-!Frontend/public/data/**
+!frontend/public/data/
+!frontend/public/data/**
 *.parquet
 *.csv
-!Frontend/public/data/*.csv
+!frontend/public/data/*.csv
 *.csv.gz
 
 # python
@@ -16,7 +16,7 @@ __pycache__/
 .env.local
 .env.*.local
 node_modules/
-Frontend/dist/
+frontend/dist/
 
 # notebooks
 .ipynb_checkpoints/
